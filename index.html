@@ -846,7 +846,57 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.1.3/dist/tesseract.min.js"></script>
+  <script type="module">
+  // Import the functions you need from the SDKs you need
+ import { initializeApp } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
+import {
+  getFirestore,
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  onSnapshot,
+  serverTimestamp
+} from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
+  // TODO: Add SDKs for Firebase products that you want to use
+  // https://firebase.google.com/docs/web/setup#available-libraries
 
+  // Your web app's Firebase configuration
+  const firebaseConfig = {
+    apiKey: "AIzaSyA_3ZrLVKtTeFqV8FBIpZrb4JHzgtL_3Fg",
+    authDomain: "shared-ledger-23ebf.firebaseapp.com",
+    projectId: "shared-ledger-23ebf",
+    storageBucket: "shared-ledger-23ebf.firebasestorage.app",
+    messagingSenderId: "969130165639",
+    appId: "1:969130165639:web:ae862ee1b7b6208e4f3f22"
+  };
+
+  // Initialize Firebase
+  const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+async function loadGroup(groupId) {
+  const ref = doc(db, "groups", groupId);
+  const snap = await getDoc(ref);
+
+  if (!snap.exists()) {
+    return null;
+  }
+  return snap.data();
+}
+
+async function createGroup(groupId) {
+    await setDoc(doc(db, "groups", groupId), {
+        createdAt: serverTimestamp(),
+        users: [],
+        entries: []
+    });
+}
+
+window.createGroup = createGroup;
+window.loadGroup = loadGroup;
+window.db = db;
+window.doc = doc;
+</script>
   <script>
     const storageKey = "shared-ledger-v1";
     const categories = ["餐飲", "交通", "住宿", "門票", "採買", "娛樂", "其他"];
@@ -895,14 +945,27 @@
       return { users: [], entries: [] };
     }
 
-    function saveState() {
+    async function saveState() {
       const payload = { users: state.users, entries: state.entries, updatedAt: Date.now() };
       localStorage.setItem(storageKey, JSON.stringify(payload));
+
+      if (currentGroupId) {
+    await syncToGroup();
+      }     
     }
 
     async function syncToGroup() {
-      // Firebase 群組同步已停用
-    }
+    if (!currentGroupId) return;
+
+    await updateDoc(
+        doc(db, "groups", currentGroupId),
+        {
+            users: state.users,
+            entries: state.entries,
+            updatedAt: Date.now()
+        }
+    );
+}
 
     function saveGroupId(groupId) {
       currentGroupId = groupId;
@@ -954,19 +1017,46 @@
     layout.hidden = true;
   }
 }
+async function createGroup(groupId) {
+    await setDoc(doc(db, "groups", groupId), {
+        createdAt: serverTimestamp(),
+        users: [],
+        entries: []
+    });
+}
 
-    async function createGroup() {
-      showToast("群組功能已停用");
-      return null;
+   async function joinGroup(groupId) {
+    const group = await loadGroup(groupId);
+
+    if (!group) {
+        showToast("找不到這個群組");
+        return;
     }
 
-    async function joinGroup(groupId) {
-      showToast("群組功能已停用");
-    }
+    currentGroupId = groupId;
+    groupDoc = group;
 
-    function subscribeGroupChanges() {
-      // Firebase 群組同步已停用
-    }
+    localStorage.setItem(groupStorageKey, groupId);
+
+    showToast("成功加入群組");
+}
+
+    async function subscribeGroupChanges() {
+    if (!currentGroupId) return;
+
+    const ref = doc(db, "groups", currentGroupId);
+
+    onSnapshot(ref, (snap) => {
+        if (!snap.exists()) return;
+
+        const data = snap.data();
+
+        state.users = data.users || [];
+        state.entries = data.entries || [];
+
+        renderLedger();
+    });
+}
 
     function updateSyncStatus(message) {
       const syncStatus = document.querySelector("#syncStatus");
@@ -1511,19 +1601,29 @@
 
 
     document.querySelector("#createGroupBtn").addEventListener("click", async () => {
-      const groupId = await createGroup();
+      const groupId = crypto.randomUUID();
+      await window.createGroup(groupId);
       if (groupId) {
         document.querySelector("#groupCode").value = groupId;
       }
     });
-    document.querySelector("#joinGroupBtn").addEventListener("click", () => {
-      const code = document.querySelector("#groupCode").value.trim();
-      if (!code) {
+    document.querySelector("#joinGroupBtn").addEventListener("click", async () => {
+    const code = document.querySelector("#groupCode").value.trim();
+
+    if (!code) {
         showToast("請輸入邀請碼");
         return;
-      }
-      joinGroup(code);
-    });
+    }
+
+    const group = await loadGroup(code);
+
+    if (!group) {
+        showToast("找不到這個群組");
+        return;
+    }
+
+    await joinGroup(code);
+});
 
     document.querySelectorAll(".tab").forEach(tab => {
       tab.addEventListener("click", () => {
