@@ -1024,15 +1024,9 @@ window.serverTimestamp = serverTimestamp;
     layout.hidden = true;
   }
 }
-async function createGroup(groupId) {
-    await setDoc(doc(db, "groups", groupId), {
-        createdAt: serverTimestamp(),
-        users: [],
-        entries: []
-    });
-}
 
-   async function joinGroup(groupId) {
+
+async function joinGroup(groupId) {
     const group = await loadGroup(groupId);
 
     if (!group) {
@@ -1041,13 +1035,19 @@ async function createGroup(groupId) {
     }
 
     currentGroupId = groupId;
-groupDoc = group;
+    groupDoc = group;
 
-localStorage.setItem(groupStorageKey, groupId);
+    localStorage.setItem(groupStorageKey, groupId);
 
-updateGroupUI(groupId);
+    // ⭐ 先把 Firestore 的資料載入到畫面
+    state.users = group.users || [];
+    state.entries = group.entries || [];
 
-showToast("成功加入群組");
+    render();
+
+    updateGroupUI(groupId);
+
+    showToast("成功加入群組");
 }
 
     async function subscribeGroupChanges() {
@@ -1066,7 +1066,7 @@ showToast("成功加入群組");
     state.users = data.users || [];
     state.entries = data.entries || [];
 
-    renderLedger();
+    render();
     updateSyncStatus("已同步");
 });
 }
