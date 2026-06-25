@@ -1,0 +1,1516 @@
+
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#246b8f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="共同記帳">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <title>多人共同記帳</title>
+  <style>
+    :root {
+      --ink: #202936;
+      --muted: #667085;
+      --line: #d7dde6;
+      --paper: #f6f8fb;
+      --panel: #ffffff;
+      --accent: #246b8f;
+      --accent-strong: #174b68;
+      --good: #12805c;
+      --bad: #c54f3e;
+      --gold: #b7791f;
+      --shadow: 0 14px 34px rgba(32, 41, 54, .10);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      -webkit-text-size-adjust: 100%;
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+      background:
+        linear-gradient(135deg, rgba(36, 107, 143, .11), transparent 36%),
+        linear-gradient(315deg, rgba(183, 121, 31, .10), transparent 42%),
+        var(--paper);
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+      touch-action: manipulation;
+    }
+
+    button {
+      border: 0;
+      cursor: pointer;
+    }
+
+    .app {
+      width: min(1180px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: max(28px, env(safe-area-inset-top)) 0 max(36px, env(safe-area-inset-bottom));
+    }
+
+    header {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 18px;
+    }
+
+    h1 {
+      margin: 0 0 6px;
+      font-size: clamp(30px, 4vw, 46px);
+      line-height: 1.05;
+      letter-spacing: 0;
+    }
+
+    h2,
+    h3,
+    p {
+      margin-top: 0;
+    }
+
+    .subtitle {
+      margin-bottom: 0;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .btn {
+      min-height: 44px;
+      border-radius: 8px;
+      padding: 0 15px;
+      color: #fff;
+      background: var(--accent);
+      box-shadow: 0 8px 18px rgba(36, 107, 143, .22);
+    }
+
+    .btn:hover {
+      background: var(--accent-strong);
+    }
+
+    .btn.secondary {
+      color: var(--ink);
+      background: #e9eef4;
+      box-shadow: none;
+    }
+
+    .btn.danger {
+      background: rgba(197, 79, 62, .11);
+      color: var(--bad);
+      box-shadow: none;
+    }
+
+    .panel {
+      border: 1px solid rgba(215, 221, 230, .95);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, .95);
+      box-shadow: var(--shadow);
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .metric {
+      min-height: 108px;
+      padding: 16px;
+      display: grid;
+      align-content: space-between;
+    }
+
+    .metric small {
+      color: var(--muted);
+      font-weight: 800;
+    }
+
+    .metric strong {
+      font-size: clamp(22px, 3vw, 31px);
+      line-height: 1.05;
+      word-break: break-word;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(290px, 380px) 1fr;
+      gap: 18px;
+      align-items: start;
+    }
+
+    .side {
+      display: grid;
+      gap: 14px;
+      position: sticky;
+      top: 18px;
+    }
+
+    .section {
+      padding: 16px;
+    }
+
+    .panel-title {
+      margin-bottom: 14px;
+      font-size: 19px;
+      line-height: 1.2;
+    }
+
+    form,
+    .field-grid,
+    .stack {
+      display: grid;
+      gap: 12px;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    label {
+      display: grid;
+      gap: 7px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      min-height: 44px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 9px 11px;
+      font-size: 16px;
+      color: var(--ink);
+      background: #fff;
+      outline: none;
+    }
+
+    textarea {
+      min-height: 90px;
+      resize: vertical;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(36, 107, 143, .16);
+    }
+
+    .tabs {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .tab {
+      min-height: 44px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--muted);
+      background: #fff;
+      font-weight: 900;
+    }
+
+    .tab.active {
+      border-color: rgba(36, 107, 143, .35);
+      color: var(--accent-strong);
+      background: rgba(36, 107, 143, .10);
+    }
+
+    .view {
+      display: none;
+    }
+
+    .view.active {
+      display: grid;
+      gap: 14px;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .chip,
+    .tag {
+      display: inline-grid;
+      place-items: center;
+      min-height: 30px;
+      border-radius: 999px;
+      padding: 0 11px;
+      color: var(--accent-strong);
+      background: #eef3f7;
+      font-size: 13px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .chip.good {
+      color: var(--good);
+      background: rgba(18, 128, 92, .10);
+    }
+
+    .chip.bad {
+      color: var(--bad);
+      background: rgba(197, 79, 62, .10);
+    }
+
+    .split-inputs {
+      display: grid;
+      gap: 9px;
+    }
+
+    .person-row {
+      display: grid;
+      grid-template-columns: minmax(90px, 1fr) minmax(120px, 1fr);
+      gap: 9px;
+      align-items: end;
+    }
+
+    .filters {
+      display: grid;
+      grid-template-columns: 1.2fr .8fr .8fr;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      min-width: 760px;
+      border-collapse: collapse;
+    }
+
+    th,
+    td {
+      padding: 12px 13px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: middle;
+    }
+
+    th {
+      color: var(--muted);
+      font-size: 12px;
+      background: #fbfcfe;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .amount {
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .good-text {
+      color: var(--good);
+    }
+
+    .bad-text {
+      color: var(--bad);
+    }
+
+    .accent-text {
+      color: var(--accent-strong);
+    }
+
+    .delete-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      color: var(--bad);
+      background: rgba(197, 79, 62, .10);
+      font-size: 18px;
+      line-height: 1;
+    }
+
+    .edit-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      color: var(--accent-strong);
+      background: rgba(36, 107, 143, .10);
+      font-size: 16px;
+      line-height: 1;
+      margin-left: 4px;
+    }
+
+    .empty {
+      padding: 34px 12px;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    .settlement-grid {
+      display: grid;
+      grid-template-columns: 1.15fr .85fr;
+      gap: 12px;
+    }
+
+    .list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .card-line {
+      display: grid;
+      gap: 5px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .line-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      font-weight: 900;
+    }
+
+    .mini {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .toast {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      max-width: min(340px, calc(100vw - 36px));
+      padding: 12px 14px;
+      border-radius: 8px;
+      color: #fff;
+      background: var(--ink);
+      box-shadow: var(--shadow);
+      opacity: 0;
+      transform: translateY(12px);
+      pointer-events: none;
+      transition: opacity .2s ease, transform .2s ease;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    @media (max-width: 900px) {
+      header,
+      .layout,
+      .settlement-grid {
+        display: block;
+      }
+
+      .toolbar {
+        justify-content: flex-start;
+        margin-top: 14px;
+      }
+
+      .side {
+        position: static;
+        margin-bottom: 14px;
+      }
+
+      .summary-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .settlement-grid .panel + .panel {
+        margin-top: 12px;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .app {
+        width: min(100% - 20px, 1180px);
+        padding-top: max(18px, env(safe-area-inset-top));
+      }
+
+      h1 {
+        font-size: 30px;
+      }
+
+      .subtitle {
+        font-size: 14px;
+      }
+
+      .summary-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .metric {
+        min-height: 86px;
+        padding: 11px 10px;
+      }
+
+      .metric small {
+        font-size: 12px;
+      }
+
+      .metric strong {
+        font-size: 20px;
+      }
+
+      .row,
+      .person-row,
+      .filters {
+        grid-template-columns: 1fr;
+      }
+
+      .tabs {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .btn,
+      input,
+      select,
+      .tab {
+        min-height: 48px;
+      }
+
+      .toolbar .btn {
+        flex: 1 1 140px;
+      }
+
+      .table-wrap {
+        overflow: visible;
+      }
+
+      table,
+      thead,
+      tbody,
+      tr,
+      td {
+        display: block;
+        width: 100%;
+        min-width: 0;
+      }
+
+      table {
+        border-collapse: separate;
+        border-spacing: 0 10px;
+      }
+
+      thead {
+        display: none;
+      }
+
+      tr {
+        padding: 13px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+        box-shadow: 0 8px 20px rgba(32, 41, 54, .08);
+      }
+
+      td {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        padding: 8px 0;
+        border-bottom: 1px solid #eef2f6;
+        text-align: right;
+      }
+
+      td::before {
+        content: attr(data-label);
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 900;
+        text-align: left;
+      }
+
+      td:last-child {
+        border-bottom: 0;
+      }
+
+      .delete-btn {
+        width: 44px;
+        height: 44px;
+        margin-left: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header>
+      <div>
+        <h1>多人共同記帳</h1>
+        <p class="subtitle">記錄每個人投入的共同基金、誰先付款、基金支付、分類與最後結算。</p>
+      </div>
+      <div class="toolbar" aria-label="資料工具">
+        <button class="btn secondary" id="exportBtn" type="button">匯出 CSV</button>
+      <button class="btn danger" id="clearBtn" type="button">清空資料</button>
+      <span id="syncStatus" class="subtitle" style="align-self: center; margin-left: auto;">尚未同步</span>
+      </div>
+    </header>
+
+    <section class="panel section" id="groupPanel" hidden>
+      <h2 class="panel-title">群組管理</h2>
+      <div class="stack">
+        <div class="row">
+          <label>
+            群組邀請碼
+            <input id="groupCode" type="text" placeholder="輸入邀請碼加入群組">
+          </label>
+          <button class="btn secondary" type="button" id="joinGroupBtn">加入群組</button>
+        </div>
+        <div class="row">
+          <button class="btn" type="button" id="createGroupBtn">建立新群組</button>
+        </div>
+        <div class="subtitle" id="groupInfo">尚未加入群組。</div>
+      </div>
+    </section>
+
+    <section class="summary-grid" aria-label="共同帳本摘要" hidden>
+      <article class="panel metric">
+        <small>總花費</small>
+        <strong class="bad-text" id="totalSpent">$0</strong>
+      </article>
+      <article class="panel metric">
+        <small>每人平均</small>
+        <strong class="accent-text" id="averageSpent">$0</strong>
+      </article>
+      <article class="panel metric">
+        <small>共同基金餘額</small>
+        <strong class="good-text" id="fundBalance">$0</strong>
+      </article>
+      <article class="panel metric">
+        <small>使用者</small>
+        <strong class="accent-text" id="userCount">0</strong>
+      </article>
+    </section>
+
+    <section class="layout" hidden>
+      <aside class="side">
+        <section class="panel section">
+          <h2 class="panel-title">使用者</h2>
+          <form id="userForm">
+            <label>
+              新增使用者
+              <input id="userName" type="text" maxlength="18" placeholder="例如 小明" required>
+            </label>
+            <button class="btn" type="submit">加入使用者</button>
+          </form>
+          <div class="chips" id="userChips"></div>
+        </section>
+
+        <section class="panel section">
+          <h2 class="panel-title">共同基金 / 追加基金</h2>
+          <form id="fundForm">
+            <div class="row">
+              <label>
+                日期
+                <input id="fundDate" type="date" required>
+              </label>
+              <label>
+                備註
+                <input id="fundNote" type="text" maxlength="40" placeholder="第一次投入、追加...">
+              </label>
+            </div>
+            <div class="split-inputs" id="fundInputs"></div>
+            <button class="btn" type="submit">記錄基金</button>
+          </form>
+        </section>
+      </aside>
+
+      <div>
+        <section class="tabs" aria-label="主要功能">
+          <button class="tab active" type="button" data-view="expenseView">支出</button>
+          <button class="tab" type="button" data-view="ledgerView">紀錄</button>
+          <button class="tab" type="button" data-view="settlementView">結算</button>
+          <button class="tab" type="button" data-view="categoryView">分類</button>
+        </section>
+
+        <section class="view active" id="expenseView">
+          <section class="panel section">
+            <h2 class="panel-title">新增支出</h2>
+            <form id="expenseForm">
+              <div class="row">
+                <label>
+                  日期
+                  <input id="expenseDate" type="date" required>
+                </label>
+                <label>
+                  金額
+                  <input id="expenseAmount" type="number" min="1" step="1" inputmode="numeric" placeholder="例如 850" required>
+                </label>
+              </div>
+              <div class="row">
+                <label>
+                  支付方式
+                  <select id="paidBy" required></select>
+                </label>
+                <label>
+                  分類
+                  <select id="category" required>
+                    <option>餐飲</option>
+                    <option>交通</option>
+                    <option>住宿</option>
+                    <option>門票</option>
+                    <option>採買</option>
+                    <option>娛樂</option>
+                    <option>其他</option>
+                  </select>
+                </label>
+              </div>
+              <label>
+                備註
+                <input id="expenseNote" type="text" maxlength="50" placeholder="晚餐、計程車、民宿尾款...">
+              </label>
+              <label>
+                發票內容 / 收據文字
+                <textarea id="invoiceText" placeholder="貼上發票文字、收據內容或簡要說明..."></textarea>
+              </label>
+              <label>
+                拍發票照片
+                <input id="invoiceImage" type="file" accept="image/*" capture="environment">
+              </label>
+              <div class="row">
+                <button class="btn secondary" type="button" id="parseInvoiceBtn">自動擷取發票</button>
+                <button class="btn secondary" type="button" id="clearInvoiceBtn">清除發票資料</button>
+              </div>
+              <div class="subtitle" id="invoicePreview" hidden></div>
+              <button class="btn" type="submit">加入支出</button>
+            </form>
+          </section>
+        </section>
+
+        <section class="view" id="ledgerView">
+          <section class="panel section" id="editFormSection" hidden>
+            <h2 class="panel-title">編輯紀錄</h2>
+            <form id="editForm">
+              <div class="row">
+                <label>
+                  日期
+                  <input id="editDate" type="date" required>
+                </label>
+                <label>
+                  金額
+                  <input id="editAmount" type="number" min="1" step="1" inputmode="numeric" required>
+                </label>
+              </div>
+              <div class="row">
+                <label>
+                  分類
+                  <select id="editCategory">
+                    <option>餐飲</option>
+                    <option>交通</option>
+                    <option>住宿</option>
+                    <option>門票</option>
+                    <option>採買</option>
+                    <option>娛樂</option>
+                    <option>其他</option>
+                  </select>
+                </label>
+              </div>
+              <label>
+                備註
+                <input id="editNote" type="text" maxlength="50">
+              </label>
+              <div class="row">
+                <button class="btn" type="submit">儲存編輯</button>
+                <button class="btn secondary" type="button" id="cancelEditBtn">取消</button>
+              </div>
+            </form>
+          </section>
+
+          <section class="panel section">
+            <h2 class="panel-title">所有紀錄</h2>
+            <div class="filters">
+              <label>
+                搜尋
+                <input id="search" type="search" placeholder="搜尋備註、分類、使用者">
+              </label>
+              <label>
+                月份
+                <input id="monthFilter" type="month">
+              </label>
+              <label>
+                類型
+                <select id="typeFilter">
+                  <option value="all">全部</option>
+                  <option value="expense">支出</option>
+                  <option value="fund">共同基金</option>
+                </select>
+              </label>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>日期</th>
+                    <th>類型</th>
+                    <th>支付/提供者</th>
+                    <th>分類</th>
+                    <th>備註</th>
+                    <th>金額</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody id="ledgerList"></tbody>
+              </table>
+            </div>
+            <div class="empty" id="emptyState" hidden>目前沒有符合條件的紀錄。</div>
+          </section>
+        </section>
+
+        <section class="view" id="settlementView">
+          <section class="settlement-grid">
+            <article class="panel section">
+              <h2 class="panel-title">每位使用者差額</h2>
+              <div class="list" id="balanceList"></div>
+            </article>
+            <article class="panel section">
+              <h2 class="panel-title">誰付給誰</h2>
+              <div class="list" id="transferList"></div>
+            </article>
+          </section>
+        </section>
+
+        <section class="view" id="categoryView">
+          <section class="panel section">
+            <h2 class="panel-title">支出分類</h2>
+            <div class="list" id="categoryList"></div>
+          </section>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.1.3/dist/tesseract.min.js"></script>
+
+  <script>
+    const storageKey = "shared-ledger-v1";
+    const categories = ["餐飲", "交通", "住宿", "門票", "採買", "娛樂", "其他"];
+    const state = loadState();
+    const groupStorageKey = "shared-ledger-group-id";
+    let currentGroupId = localStorage.getItem(groupStorageKey);
+    let groupDoc = null;
+
+    const formatter = new Intl.NumberFormat("zh-TW", {
+      style: "currency",
+      currency: "TWD",
+      maximumFractionDigits: 0
+    });
+
+    const userForm = document.querySelector("#userForm");
+    const fundForm = document.querySelector("#fundForm");
+    const expenseForm = document.querySelector("#expenseForm");
+    const userName = document.querySelector("#userName");
+    const fundDate = document.querySelector("#fundDate");
+    const fundNote = document.querySelector("#fundNote");
+    const fundInputs = document.querySelector("#fundInputs");
+    const expenseDate = document.querySelector("#expenseDate");
+    const expenseAmount = document.querySelector("#expenseAmount");
+    const paidBy = document.querySelector("#paidBy");
+    const category = document.querySelector("#category");
+    const expenseNote = document.querySelector("#expenseNote");
+    const invoiceText = document.querySelector("#invoiceText");
+    const invoiceImage = document.querySelector("#invoiceImage");
+    const parseInvoiceBtn = document.querySelector("#parseInvoiceBtn");
+    const clearInvoiceBtn = document.querySelector("#clearInvoiceBtn");
+    const invoicePreview = document.querySelector("#invoicePreview");
+    const ledgerList = document.querySelector("#ledgerList");
+    const emptyState = document.querySelector("#emptyState");
+    const search = document.querySelector("#search");
+    const monthFilter = document.querySelector("#monthFilter");
+    const typeFilter = document.querySelector("#typeFilter");
+    const toast = document.querySelector("#toast");
+
+    function loadState() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(storageKey));
+        if (saved && Array.isArray(saved.users) && Array.isArray(saved.entries)) {
+          return { users: saved.users, entries: saved.entries };
+        }
+      } catch {}
+      return { users: [], entries: [] };
+    }
+
+    function saveState() {
+      const payload = { users: state.users, entries: state.entries, updatedAt: Date.now() };
+      localStorage.setItem(storageKey, JSON.stringify(payload));
+    }
+
+    async function syncToGroup() {
+      // Firebase 群組同步已停用
+    }
+
+    function saveGroupId(groupId) {
+      currentGroupId = groupId;
+      localStorage.setItem(groupStorageKey, groupId || "");
+    }
+
+    function clearGroupId() {
+      currentGroupId = null;
+      localStorage.removeItem(groupStorageKey);
+    }
+
+    function mergeState(local, remote) {
+      const merged = {
+        users: [],
+        entries: []
+      };
+      const userMap = new Map();
+      [...local.users, ...remote.users].forEach(user => {
+        if (!user || !user.id) return;
+        const existing = userMap.get(user.id);
+        if (!existing || existing.name !== user.name) userMap.set(user.id, user);
+      });
+      merged.users = Array.from(userMap.values());
+      const entryMap = new Map();
+      [...local.entries, ...remote.entries].forEach(entry => {
+        if (!entry || !entry.id) return;
+        const existing = entryMap.get(entry.id);
+        if (!existing || entry.createdAt > existing.createdAt) entryMap.set(entry.id, entry);
+      });
+      merged.entries = Array.from(entryMap.values());
+      return merged;
+    }
+
+    function updateGroupUI() {
+
+    function updateGroupUI(groupName) {
+      const groupInfo = document.querySelector("#groupInfo");
+      const groupPanel = document.querySelector("#groupPanel");
+      const summaryGrid = document.querySelector(".summary-grid");
+      const layout = document.querySelector(".layout");
+      if (groupName) {
+        groupInfo.textContent = `已加入群組：${groupName}`;
+        groupPanel.hidden = false;
+        summaryGrid.hidden = false;
+        layout.hidden = false;
+      } else {
+        groupInfo.textContent = "尚未加入群組。";
+        groupPanel.hidden = true;
+        summaryGrid.hidden = true;
+        layout.hidden = true;
+      }
+    }
+
+    async function createGroup() {
+      showToast("群組功能已停用");
+      return null;
+    }
+
+    async function joinGroup(groupId) {
+      showToast("群組功能已停用");
+    }
+
+    function subscribeGroupChanges() {
+      // Firebase 群組同步已停用
+    }
+
+    function updateSyncStatus(message) {
+      const syncStatus = document.querySelector("#syncStatus");
+      if (syncStatus) syncStatus.textContent = message;
+    }
+
+
+
+    function id() {
+      return crypto.randomUUID();
+    }
+
+    function todayValue() {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, "0");
+      const day = String(now.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    }
+
+    function currentMonthValue() {
+      return todayValue().slice(0, 7);
+    }
+
+    function money(value) {
+      return formatter.format(Math.round(value));
+    }
+
+    function userById(userId) {
+      return state.users.find(user => user.id === userId);
+    }
+
+    function userNameById(userId) {
+      return userById(userId)?.name || "已刪除使用者";
+    }
+
+    function showToast(message) {
+      toast.textContent = message;
+      toast.classList.add("show");
+      window.clearTimeout(showToast.timer);
+      showToast.timer = window.setTimeout(() => toast.classList.remove("show"), 1900);
+    }
+
+    function guessCategory(text) {
+      const normalized = text.toLowerCase();
+      const categoryMap = [
+        { keywords: ["餐", "飲", "咖啡", "早餐", "午餐", "晚餐", "餐廳"], category: "餐飲" },
+        { keywords: ["計程車", "車資", "捷運", "公車", "交通"], category: "交通" },
+        { keywords: ["旅館", "飯店", "民宿", "住宿"], category: "住宿" },
+        { keywords: ["門票", "票", "景點", "表演"], category: "門票" },
+        { keywords: ["超商", "超市", "購物", "採買", "便利商店", "賣場"], category: "採買" },
+        { keywords: ["電影", "遊樂", "娛樂", "泡湯", "唱歌"], category: "娛樂" }
+      ];
+      for (const item of categoryMap) {
+        if (item.keywords.some(word => normalized.includes(word))) return item.category;
+      }
+      return null;
+    }
+
+    function extractInvoiceNote(text) {
+      const cleaned = text.trim().replace(/\s+/g, " ").slice(0, 120);
+      const keywordMatch = cleaned.match(/(?:餐飲|交通|住宿|門票|採買|娛樂|購物|計程車|車資|飯店|民宿|超商|超市|餐廳|晚餐|午餐|早餐|票|景點).*/i);
+      return keywordMatch ? keywordMatch[0] : cleaned;
+    }
+
+    function setInvoicePreview(message) {
+      invoicePreview.hidden = false;
+      invoicePreview.textContent = message;
+    }
+
+    function clearInvoiceFields() {
+      invoiceText.value = "";
+      invoiceImage.value = "";
+      invoicePreview.textContent = "";
+      invoicePreview.hidden = true;
+    }
+
+    let invoiceOCRWorker = null;
+
+    async function ensureOCRWorker() {
+      if (!window.Tesseract) throw new Error("OCR 引擎尚未載入");
+      if (invoiceOCRWorker) return invoiceOCRWorker;
+      invoiceOCRWorker = Tesseract.createWorker({
+        logger: () => {}
+      });
+      await invoiceOCRWorker.load();
+      await invoiceOCRWorker.loadLanguage("chi_tra+eng");
+      await invoiceOCRWorker.initialize("chi_tra+eng");
+      return invoiceOCRWorker;
+    }
+
+    async function extractTextFromImage(file) {
+      try {
+        const worker = await ensureOCRWorker();
+        setInvoicePreview("正在辨識發票圖片，請稍候...");
+        const { data: { text } } = await worker.recognize(file);
+        return text;
+      } catch (error) {
+        console.warn("OCR 無法執行：", error);
+        return "";
+      }
+    }
+
+    function parseInvoiceText() {
+      const text = invoiceText.value.trim();
+      if (!text) {
+        showToast("請先貼上發票內容或簡要說明");
+        return;
+      }
+      const amounts = [...text.matchAll(/((?:\d{1,3}(?:,\d{3})*|\d+)(?:\.\d{1,2})?)/g)].map(match => Number(match[1].replace(/,/g, ""))).filter(Number.isFinite);
+      const amount = amounts.length ? Math.max(...amounts) : null;
+      if (amount) expenseAmount.value = amount;
+      const categoryName = guessCategory(text);
+      if (categoryName) category.value = categoryName;
+      expenseNote.value = extractInvoiceNote(text);
+      setInvoicePreview(`已自動擷取發票資料，可再手動調整。金額：${amount ? money(amount) : "未找到"}。分類：${categoryName || "請選擇"}`);
+      showToast("已自動擷取發票內容，請確認後再提交");
+    }
+
+    async function parseInvoiceFile(file) {
+      const filenameText = file.name.replace(/[_\-.]/g, " ");
+      invoiceText.value = filenameText;
+      parseInvoiceText();
+      const ocrText = await extractTextFromImage(file);
+      if (ocrText) {
+        invoiceText.value = ocrText;
+        parseInvoiceText();
+        setInvoicePreview(`已辨識發票圖片內容。若結果不正確，請手動修正。`);
+      } else {
+        setInvoicePreview(`已選擇發票照片：${file.name}。OCR 未完成，請手動輸入或修正。`);
+      }
+    }
+
+    function totals() {
+      const totalSpent = state.entries
+        .filter(entry => entry.type === "expense")
+        .reduce((sum, entry) => sum + entry.amount, 0);
+      const totalFund = state.entries
+        .filter(entry => entry.type === "fund")
+        .reduce((sum, entry) => sum + entry.contributions.reduce((part, item) => part + item.amount, 0), 0);
+      const fundSpent = state.entries
+        .filter(entry => entry.type === "expense" && entry.paidBy === "fund")
+        .reduce((sum, entry) => sum + entry.amount, 0);
+      const fundBalance = totalFund - fundSpent;
+      const average = state.users.length ? totalSpent / state.users.length : 0;
+      return { totalSpent, totalFund, fundSpent, fundBalance, average };
+    }
+
+    function settlement() {
+      const { average, fundBalance } = totals();
+      const sharedRemainingFund = state.users.length ? fundBalance / state.users.length : 0;
+      const rows = state.users.map(user => {
+        const directPaid = state.entries
+          .filter(entry => entry.type === "expense" && entry.paidBy === user.id)
+          .reduce((sum, entry) => sum + entry.amount, 0);
+        const fundProvided = state.entries
+          .filter(entry => entry.type === "fund")
+          .reduce((sum, entry) => {
+            const contribution = entry.contributions.find(item => item.userId === user.id);
+            return sum + (contribution?.amount || 0);
+          }, 0);
+        const actualPaid = directPaid + fundProvided;
+        const settlementPaid = actualPaid - sharedRemainingFund;
+        const difference = settlementPaid - average;
+        return { user, directPaid, fundProvided, actualPaid, settlementPaid, difference };
+      });
+
+      const debtors = rows
+        .filter(row => row.difference < -0.5)
+        .map(row => ({ name: row.user.name, amount: Math.abs(row.difference) }))
+        .sort((a, b) => b.amount - a.amount);
+      const creditors = rows
+        .filter(row => row.difference > 0.5)
+        .map(row => ({ name: row.user.name, amount: row.difference }))
+        .sort((a, b) => b.amount - a.amount);
+      const transfers = [];
+      let debtorIndex = 0;
+      let creditorIndex = 0;
+
+      while (debtorIndex < debtors.length && creditorIndex < creditors.length) {
+        const debtor = debtors[debtorIndex];
+        const creditor = creditors[creditorIndex];
+        const amount = Math.min(debtor.amount, creditor.amount);
+        if (amount > 0.5) transfers.push({ from: debtor.name, to: creditor.name, amount });
+        debtor.amount -= amount;
+        creditor.amount -= amount;
+        if (debtor.amount <= 0.5) debtorIndex += 1;
+        if (creditor.amount <= 0.5) creditorIndex += 1;
+      }
+
+      return { rows, transfers };
+    }
+
+    function renderUsers() {
+      document.querySelector("#userChips").innerHTML = state.users.length
+        ? state.users.map(user => `<span class="chip">${user.name}</span>`).join("")
+        : `<p class="subtitle">先加入一起分帳的人。</p>`;
+
+      paidBy.innerHTML = `<option value="fund">共同基金支付</option>` +
+        state.users.map(user => `<option value="${user.id}">${user.name} 預先支付</option>`).join("");
+
+      fundInputs.innerHTML = state.users.length
+        ? state.users.map(user => `
+          <div class="person-row">
+            <label>
+              使用者
+              <input type="text" value="${user.name}" disabled>
+            </label>
+            <label>
+              提供金額
+              <input type="number" min="0" step="1" inputmode="numeric" data-fund-user="${user.id}" placeholder="0">
+            </label>
+          </div>
+        `).join("")
+        : `<p class="subtitle">加入使用者後，就能記錄每個人提供多少基金。</p>`;
+    }
+
+    function renderSummary() {
+      const { totalSpent, average, fundBalance } = totals();
+      document.querySelector("#totalSpent").textContent = money(totalSpent);
+      document.querySelector("#averageSpent").textContent = money(average);
+      document.querySelector("#fundBalance").textContent = money(fundBalance);
+      document.querySelector("#userCount").textContent = String(state.users.length);
+    }
+
+    function entryPerson(entry) {
+      if (entry.type === "expense") return entry.paidBy === "fund" ? "共同基金" : userNameById(entry.paidBy);
+      return entry.contributions
+        .filter(item => item.amount > 0)
+        .map(item => `${userNameById(item.userId)} ${money(item.amount)}`)
+        .join("、") || "未填金額";
+    }
+
+    function filteredEntries() {
+      const term = search.value.trim().toLowerCase();
+      return state.entries
+        .filter(entry => !monthFilter.value || entry.date.startsWith(monthFilter.value))
+        .filter(entry => typeFilter.value === "all" || entry.type === typeFilter.value)
+        .filter(entry => {
+          if (!term) return true;
+          return `${entryPerson(entry)} ${entry.category || ""} ${entry.note || ""}`.toLowerCase().includes(term);
+        })
+        .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt);
+    }
+
+    function renderLedger() {
+      const entries = filteredEntries();
+      ledgerList.innerHTML = entries.map(entry => {
+        const isExpense = entry.type === "expense";
+        const typeText = isExpense ? "支出" : "共同基金";
+        const amount = isExpense
+          ? `<span class="amount bad-text">-${money(entry.amount)}</span>`
+          : `<span class="amount good-text">+${money(entry.contributions.reduce((sum, item) => sum + item.amount, 0))}</span>`;
+        const editButton = isExpense ? `<button class="edit-btn" type="button" data-edit="${entry.id}" aria-label="編輯">✏️</button>` : "";
+        return `
+          <tr>
+            <td data-label="日期">${entry.date}</td>
+            <td data-label="類型">${typeText}</td>
+            <td data-label="支付/提供者">${entryPerson(entry)}</td>
+            <td data-label="分類">${entry.category ? `<span class="tag">${entry.category}</span>` : "基金"}</td>
+            <td data-label="備註">${entry.note || "未填寫"}</td>
+            <td data-label="金額">${amount}</td>
+            <td data-label="操作"><button class="delete-btn" type="button" data-delete="${entry.id}" aria-label="刪除">×</button>${editButton}</td>
+          </tr>
+        `;
+      }).join("");
+      emptyState.hidden = entries.length > 0;
+    }
+
+    function editEntry(entry) {
+      document.querySelector("#editFormSection").hidden = false;
+      document.querySelector("#editDate").value = entry.date;
+      document.querySelector("#editAmount").value = entry.amount || "";
+      document.querySelector("#editCategory").value = entry.category || "其他";
+      document.querySelector("#editNote").value = entry.note || "";
+      document.querySelector("#editForm").dataset.entryId = entry.id;
+      document.querySelector("#ledgerView").scrollIntoView({ behavior: "smooth" });
+    }
+
+    function cancelEdit() {
+      document.querySelector("#editFormSection").hidden = true;
+      document.querySelector("#editForm").reset();
+      delete document.querySelector("#editForm").dataset.entryId;
+    }
+
+    function saveEdit() {
+      const entryId = document.querySelector("#editForm").dataset.entryId;
+      const entry = state.entries.find(e => e.id === entryId);
+      if (!entry) return;
+      
+      entry.date = document.querySelector("#editDate").value;
+      entry.amount = Number(document.querySelector("#editAmount").value) || 0;
+      entry.category = document.querySelector("#editCategory").value;
+      entry.note = document.querySelector("#editNote").value.trim();
+      
+      saveState();
+      render();
+      cancelEdit();
+      showToast("已儲存編輯");
+    }
+
+    function renderSettlement() {
+      const { rows, transfers } = settlement();
+      const { fundBalance } = totals();
+      document.querySelector("#balanceList").innerHTML = rows.length
+        ? rows.map(row => {
+          const className = row.difference >= 0 ? "good-text" : "bad-text";
+          const label = row.difference >= 0 ? "應收" : "應付";
+          return `
+            <div class="card-line">
+              <div class="line-head">
+                <span>${row.user.name}</span>
+                <span class="${className}">${label} ${money(Math.abs(row.difference))}</span>
+              </div>
+              <div class="mini">實際支付 ${money(row.actualPaid)}，含預先支付 ${money(row.directPaid)}、基金提供 ${money(row.fundProvided)}</div>
+              <div class="mini">基金餘額已平均保留/退回：${money(state.users.length ? fundBalance / state.users.length : 0)}</div>
+            </div>
+          `;
+        }).join("")
+        : `<p class="subtitle">加入使用者與支出後，這裡會自動計算差額。</p>`;
+
+      document.querySelector("#transferList").innerHTML = transfers.length
+        ? transfers.map(item => `
+          <div class="card-line">
+            <div class="line-head">
+              <span>${item.from} 付給 ${item.to}</span>
+              <span class="amount">${money(item.amount)}</span>
+            </div>
+            <div class="mini">依目前帳本自動計算的最少轉帳建議。</div>
+          </div>
+        `).join("")
+        : `<p class="subtitle">目前不需要互相轉帳，或資料還不足以結算。</p>`;
+    }
+
+    function renderCategories() {
+      const expenses = state.entries.filter(entry => entry.type === "expense");
+      const grouped = categories.map(name => ({
+        name,
+        amount: expenses.filter(entry => entry.category === name).reduce((sum, entry) => sum + entry.amount, 0)
+      })).filter(item => item.amount > 0).sort((a, b) => b.amount - a.amount);
+      const max = Math.max(...grouped.map(item => item.amount), 1);
+
+      document.querySelector("#categoryList").innerHTML = grouped.length
+        ? grouped.map(item => `
+          <div class="card-line">
+            <div class="line-head"><span>${item.name}</span><span>${money(item.amount)}</span></div>
+            <div class="mini">
+              <div style="height:9px;border-radius:999px;background:#e8eef5;overflow:hidden;">
+                <span style="display:block;width:${(item.amount / max) * 100}%;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--accent),var(--gold));"></span>
+              </div>
+            </div>
+          </div>
+        `).join("")
+        : `<p class="subtitle">還沒有支出分類資料。</p>`;
+    }
+
+    function render() {
+      renderUsers();
+      renderSummary();
+      renderLedger();
+      renderSettlement();
+      renderCategories();
+    }
+
+    function requireUsers() {
+      if (state.users.length) return true;
+      showToast("請先加入使用者");
+      return false;
+    }
+
+    userForm.addEventListener("submit", event => {
+      event.preventDefault();
+      const name = userName.value.trim();
+      if (!name) return;
+      if (state.users.some(user => user.name === name)) {
+        showToast("這個使用者已存在");
+        return;
+      }
+      state.users.push({ id: id(), name });
+      saveState();
+      userForm.reset();
+      render();
+      showToast("已加入使用者");
+    });
+
+    fundForm.addEventListener("submit", event => {
+      event.preventDefault();
+      if (!requireUsers()) return;
+      const contributions = [...document.querySelectorAll("[data-fund-user]")]
+        .map(input => ({ userId: input.dataset.fundUser, amount: Number(input.value || 0) }))
+        .filter(item => Number.isFinite(item.amount) && item.amount > 0);
+      if (!contributions.length) {
+        showToast("請至少輸入一位使用者提供的金額");
+        return;
+      }
+      state.entries.push({
+        id: id(),
+        type: "fund",
+        date: fundDate.value,
+        contributions,
+        note: fundNote.value.trim(),
+        createdAt: Date.now()
+      });
+      saveState();
+      fundForm.reset();
+      fundDate.value = todayValue();
+      render();
+      showToast("已記錄共同基金");
+    });
+
+    expenseForm.addEventListener("submit", event => {
+      event.preventDefault();
+      if (!requireUsers()) return;
+      const amount = Number(expenseAmount.value);
+      if (!Number.isFinite(amount) || amount <= 0) {
+        showToast("請輸入正確金額");
+        return;
+      }
+      if (paidBy.value === "fund" && amount > totals().fundBalance) {
+        showToast("共同基金餘額不足");
+        return;
+      }
+      state.entries.push({
+        id: id(),
+        type: "expense",
+        date: expenseDate.value,
+        amount,
+        paidBy: paidBy.value,
+        category: category.value,
+        note: expenseNote.value.trim(),
+        createdAt: Date.now()
+      });
+      saveState();
+      expenseForm.reset();
+      expenseDate.value = todayValue();
+      clearInvoiceFields();
+      render();
+      showToast("已加入支出");
+    });
+
+    ledgerList.addEventListener("click", event => {
+      const deleteBtn = event.target.closest("[data-delete]");
+      if (deleteBtn) {
+        const index = state.entries.findIndex(entry => entry.id === deleteBtn.dataset.delete);
+        if (index >= 0) state.entries.splice(index, 1);
+        saveState();
+        render();
+        showToast("已刪除紀錄");
+        return;
+      }
+
+      const editBtn = event.target.closest("[data-edit]");
+      if (editBtn) {
+        const entryId = editBtn.dataset.edit;
+        const entry = state.entries.find(e => e.id === entryId);
+        if (!entry) return;
+        editEntry(entry);
+      }
+    });
+
+    parseInvoiceBtn.addEventListener("click", parseInvoiceText);
+    clearInvoiceBtn.addEventListener("click", clearInvoiceFields);
+    document.querySelector("#editForm").addEventListener("submit", event => {
+      event.preventDefault();
+      saveEdit();
+    });
+    document.querySelector("#cancelEditBtn").addEventListener("click", cancelEdit);
+    invoiceImage.addEventListener("change", () => {
+      const file = invoiceImage.files?.[0];
+      if (!file) {
+        clearInvoiceFields();
+        return;
+      }
+      parseInvoiceFile(file);
+    });
+
+
+    document.querySelector("#createGroupBtn").addEventListener("click", async () => {
+      const groupId = await createGroup();
+      if (groupId) {
+        document.querySelector("#groupCode").value = groupId;
+      }
+    });
+    document.querySelector("#joinGroupBtn").addEventListener("click", () => {
+      const code = document.querySelector("#groupCode").value.trim();
+      if (!code) {
+        showToast("請輸入邀請碼");
+        return;
+      }
+      joinGroup(code);
+    });
+
+    document.querySelectorAll(".tab").forEach(tab => {
+      tab.addEventListener("click", () => {
+        document.querySelectorAll(".tab").forEach(item => item.classList.remove("active"));
+        document.querySelectorAll(".view").forEach(view => view.classList.remove("active"));
+        tab.classList.add("active");
+        document.querySelector(`#${tab.dataset.view}`).classList.add("active");
+      });
+    });
+
+    [search, monthFilter, typeFilter].forEach(control => {
+      control.addEventListener("input", renderLedger);
+      control.addEventListener("change", renderLedger);
+    });
+
+    document.querySelector("#exportBtn").addEventListener("click", () => {
+      if (!state.users.length && !state.entries.length) {
+        showToast("目前沒有資料可以匯出");
+        return;
+      }
+      const { totalSpent, average, fundBalance } = totals();
+      const { rows, transfers } = settlement();
+      const lines = [
+        ["使用者"],
+        ["姓名"],
+        ...state.users.map(user => [user.name]),
+        [],
+        ["基金與支出紀錄"],
+        ["日期", "類型", "支付/提供者", "分類", "備註", "金額"],
+        ...state.entries.map(entry => [
+          entry.date,
+          entry.type === "expense" ? "支出" : "共同基金",
+          entryPerson(entry),
+          entry.category || "基金",
+          entry.note || "",
+          entry.type === "expense" ? entry.amount : entry.contributions.reduce((sum, item) => sum + item.amount, 0)
+        ]),
+        [],
+        ["結算"],
+        ["總花費", totalSpent],
+        ["每人平均", average],
+        ["共同基金餘額", fundBalance],
+        ["姓名", "實際支付", "差額"],
+        ...rows.map(row => [row.user.name, row.actualPaid, row.difference]),
+        [],
+        ["轉帳建議"],
+        ["付款人", "收款人", "金額"],
+        ...transfers.map(item => [item.from, item.to, item.amount])
+      ];
+      const csv = lines
+        .map(row => row.map(value => `"${String(value ?? "").replaceAll('"', '""')}"`).join(","))
+        .join("\n");
+      const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `共同記帳-${todayValue()}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+    });
+
+    document.querySelector("#clearBtn").addEventListener("click", () => {
+      if (!state.users.length && !state.entries.length) {
+        showToast("目前沒有資料");
+        return;
+      }
+      if (!confirm("確定要清空所有共同記帳資料嗎？")) return;
+      state.users = [];
+      state.entries = [];
+      saveState();
+      render();
+      showToast("已清空資料");
+    });
+
+    fundDate.value = todayValue();
+    expenseDate.value = todayValue();
+    monthFilter.value = currentMonthValue();
+    window.addEventListener("pagehide", saveState);
+    window.addEventListener("beforeunload", saveState);
+
+    render();
+  </script>
+</body>
+</html>
