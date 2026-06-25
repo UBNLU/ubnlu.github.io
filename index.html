@@ -894,8 +894,15 @@ async function createGroup(groupId) {
 
 window.createGroup = createGroup;
 window.loadGroup = loadGroup;
+
 window.db = db;
 window.doc = doc;
+
+window.setDoc = setDoc;
+window.getDoc = getDoc;
+window.updateDoc = updateDoc;
+window.onSnapshot = onSnapshot;
+window.serverTimestamp = serverTimestamp;
 </script>
   <script>
     const storageKey = "shared-ledger-v1";
@@ -1047,15 +1054,16 @@ async function createGroup(groupId) {
     const ref = doc(db, "groups", currentGroupId);
 
     onSnapshot(ref, (snap) => {
-        if (!snap.exists()) return;
+    if (!snap.exists()) return;
 
-        const data = snap.data();
+    const data = snap.data();
 
-        state.users = data.users || [];
-        state.entries = data.entries || [];
+    state.users = data.users || [];
+    state.entries = data.entries || [];
 
-        renderLedger();
-    });
+    renderLedger();
+    updateSyncStatus("已同步");
+});
 }
 
     function updateSyncStatus(message) {
@@ -1602,27 +1610,27 @@ async function createGroup(groupId) {
 
     document.querySelector("#createGroupBtn").addEventListener("click", async () => {
       const groupId = crypto.randomUUID();
-      await window.createGroup(groupId);
-      if (groupId) {
-        document.querySelector("#groupCode").value = groupId;
-      }
+
+await createGroup(groupId);
+
+currentGroupId = groupId;
+
+await subscribeGroupChanges();
+
+if (groupId) {
+    document.querySelector("#groupCode").value = groupId;
+}
     });
     document.querySelector("#joinGroupBtn").addEventListener("click", async () => {
-    const code = document.querySelector("#groupCode").value.trim();
+  const code = document.querySelector("#groupCode").value.trim();
 
-    if (!code) {
-        showToast("請輸入邀請碼");
-        return;
-    }
+  if (!code) {
+    showToast("請輸入邀請碼");
+    return;
+  }
 
-    const group = await loadGroup(code);
-
-    if (!group) {
-        showToast("找不到這個群組");
-        return;
-    }
-
-    await joinGroup(code);
+  await joinGroup(code);
+  await subscribeGroupChanges();
 });
 
     document.querySelectorAll(".tab").forEach(tab => {
