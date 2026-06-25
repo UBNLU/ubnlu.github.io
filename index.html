@@ -260,7 +260,36 @@
       gap: 8px;
     }
 
-    .chip,
+    .chip{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  min-height:30px;
+  border-radius:999px;
+  padding:0 11px;
+  color:var(--accent-strong);
+  background:#eef3f7;
+  font-size:13px;
+  font-weight:900;
+}
+
+.delete-user{
+  border:none;
+  background:transparent;
+  color:#c54f3e;
+  cursor:pointer;
+  font-size:16px;
+  font-weight:bold;
+  padding:0;
+}
+
+.delete-user:hover{
+  color:red;
+}
+
+.delete-user:hover{
+  color:red;
+}
     .tag {
       display: inline-grid;
       place-items: center;
@@ -582,7 +611,7 @@
       </div>
     </header>
 
-    <section class="panel section" id="groupPanel" hidden>
+    <section class="panel section" id="groupPanel">
       <h2 class="panel-title">群組管理</h2>
       <div class="stack">
         <div class="row">
@@ -599,7 +628,7 @@
       </div>
     </section>
 
-    <section class="summary-grid" aria-label="共同帳本摘要" hidden>
+    <section class="summary-grid" aria-label="共同帳本摘要">
       <article class="panel metric">
         <small>總花費</small>
         <strong class="bad-text" id="totalSpent">$0</strong>
@@ -618,7 +647,7 @@
       </article>
     </section>
 
-    <section class="layout" hidden>
+    <section class="layout">
       <aside class="side">
         <section class="panel section">
           <h2 class="panel-title">使用者</h2>
@@ -907,25 +936,24 @@
       return merged;
     }
 
-    function updateGroupUI() {
-
     function updateGroupUI(groupName) {
-      const groupInfo = document.querySelector("#groupInfo");
-      const groupPanel = document.querySelector("#groupPanel");
-      const summaryGrid = document.querySelector(".summary-grid");
-      const layout = document.querySelector(".layout");
-      if (groupName) {
-        groupInfo.textContent = `已加入群組：${groupName}`;
-        groupPanel.hidden = false;
-        summaryGrid.hidden = false;
-        layout.hidden = false;
-      } else {
-        groupInfo.textContent = "尚未加入群組。";
-        groupPanel.hidden = true;
-        summaryGrid.hidden = true;
-        layout.hidden = true;
-      }
-    }
+  const groupInfo = document.querySelector("#groupInfo");
+  const groupPanel = document.querySelector("#groupPanel");
+  const summaryGrid = document.querySelector(".summary-grid");
+  const layout = document.querySelector(".layout");
+
+  if (groupName) {
+    groupInfo.textContent = `已加入群組：${groupName}`;
+    groupPanel.hidden = false;
+    summaryGrid.hidden = false;
+    layout.hidden = false;
+  } else {
+    groupInfo.textContent = "尚未加入群組。";
+    groupPanel.hidden = true;
+    summaryGrid.hidden = true;
+    layout.hidden = true;
+  }
+}
 
     async function createGroup() {
       showToast("群組功能已停用");
@@ -948,9 +976,15 @@
 
 
     function id() {
-      return crypto.randomUUID();
-    }
+  if (window.crypto && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
 
+  return (
+    Date.now().toString(36) +
+    Math.random().toString(36).substring(2)
+  );
+}
     function todayValue() {
       const now = new Date();
       const year = now.getFullYear();
@@ -1134,8 +1168,13 @@
 
     function renderUsers() {
       document.querySelector("#userChips").innerHTML = state.users.length
-        ? state.users.map(user => `<span class="chip">${user.name}</span>`).join("")
-        : `<p class="subtitle">先加入一起分帳的人。</p>`;
+  ? state.users.map(user => `
+      <span class="chip">
+  ${user.name}
+  <button class="delete-user" data-user="${user.id}">×</button>
+</span>
+    `).join("")
+  : `<p class="subtitle">先加入一起分帳的人。</p>`;
 
       paidBy.innerHTML = `<option value="fund">共同基金支付</option>` +
         state.users.map(user => `<option value="${user.id}">${user.name} 預先支付</option>`).join("");
@@ -1310,19 +1349,38 @@
     }
 
     userForm.addEventListener("submit", event => {
-      event.preventDefault();
-      const name = userName.value.trim();
-      if (!name) return;
-      if (state.users.some(user => user.name === name)) {
-        showToast("這個使用者已存在");
+    event.preventDefault();
+
+    const name = userName.value.trim();
+
+    console.log("name=", name);
+    console.log(state.users);
+
+    if (!name) {
+        alert("名字是空的");
         return;
-      }
-      state.users.push({ id: id(), name });
-      saveState();
-      userForm.reset();
-      render();
-      showToast("已加入使用者");
+    }
+
+    if (state.users.some(user => user.name === name)) {
+        alert("使用者已存在");
+        return;
+    }
+
+    state.users.push({
+        id: id(),
+        name: name
     });
+
+    console.log("新增後", state.users);
+
+    saveState();
+
+    render();
+
+    userForm.reset();
+
+    alert("新增成功");
+});
 
     fundForm.addEventListener("submit", event => {
       event.preventDefault();
@@ -1398,6 +1456,42 @@
         editEntry(entry);
       }
     });
+   document.querySelector("#userChips").addEventListener("click", event => {
+
+    if (!event.target.classList.contains("delete-user")) return;
+
+    const userId = event.target.dataset.user;
+
+    // 檢查是否有任何紀錄使用到這位使用者
+    const hasRecord = state.entries.some(entry => {
+
+        // 支出紀錄
+        if (entry.type === "expense") {
+            return entry.paidBy === userId;
+        }
+
+        // 基金紀錄
+        if (entry.type === "fund") {
+            return entry.contributions.some(c => c.userId === userId);
+        }
+
+        return false;
+    });
+
+    if (hasRecord) {
+        showToast("此使用者已有記帳紀錄，不能刪除！");
+        return;
+    }
+
+    if (!confirm("確定刪除這位使用者？")) return;
+
+    state.users = state.users.filter(user => user.id !== userId);
+
+    saveState();
+    render();
+
+    showToast("已刪除使用者");
+});
 
     parseInvoiceBtn.addEventListener("click", parseInvoiceText);
     clearInvoiceBtn.addEventListener("click", clearInvoiceFields);
@@ -1505,12 +1599,15 @@
     });
 
     fundDate.value = todayValue();
-    expenseDate.value = todayValue();
-    monthFilter.value = currentMonthValue();
-    window.addEventListener("pagehide", saveState);
-    window.addEventListener("beforeunload", saveState);
+expenseDate.value = todayValue();
+monthFilter.value = currentMonthValue();
 
-    render();
+updateGroupUI("本機模式");
+
+window.addEventListener("pagehide", saveState);
+window.addEventListener("beforeunload", saveState);
+
+render();
   </script>
 </body>
 </html>
