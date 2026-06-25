@@ -1041,11 +1041,13 @@ async function createGroup(groupId) {
     }
 
     currentGroupId = groupId;
-    groupDoc = group;
+groupDoc = group;
 
-    localStorage.setItem(groupStorageKey, groupId);
+localStorage.setItem(groupStorageKey, groupId);
 
-    showToast("成功加入群組");
+updateGroupUI(groupId);
+
+showToast("成功加入群組");
 }
 
     async function subscribeGroupChanges() {
@@ -1053,7 +1055,10 @@ async function createGroup(groupId) {
 
     const ref = doc(db, "groups", currentGroupId);
 
-    onSnapshot(ref, (snap) => {
+   onSnapshot(ref, (snap) => {
+
+    console.log("收到 Firebase 更新");
+
     if (!snap.exists()) return;
 
     const data = snap.data();
@@ -1067,9 +1072,11 @@ async function createGroup(groupId) {
 }
 
     function updateSyncStatus(message) {
-      const syncStatus = document.querySelector("#syncStatus");
-      if (syncStatus) syncStatus.textContent = message;
-    }
+    console.log("同步狀態：", message);
+
+    const syncStatus = document.querySelector("#syncStatus");
+    if (syncStatus) syncStatus.textContent = message;
+}
 
 
 
