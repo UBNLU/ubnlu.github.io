@@ -1713,16 +1713,25 @@ if (groupId) {
       showToast("已清空資料");
     });
 
+async function initialize() {
     fundDate.value = todayValue();
-expenseDate.value = todayValue();
-monthFilter.value = currentMonthValue();
+    expenseDate.value = todayValue();
+    monthFilter.value = currentMonthValue();
 
-updateGroupUI("本機模式");
+    window.addEventListener("pagehide", saveState);
+    window.addEventListener("beforeunload", saveState);
 
-window.addEventListener("pagehide", saveState);
-window.addEventListener("beforeunload", saveState);
+    if (currentGroupId) {
+        await joinGroup(currentGroupId);
+        await subscribeGroupChanges();
+    } else {
+        updateGroupUI("本機模式");
+    }
 
-render();
+    render();
+}
+
+initialize();
   </script>
 </body>
 </html>
