@@ -723,19 +723,6 @@
                 備註
                 <input id="expenseNote" type="text" maxlength="50" placeholder="晚餐、計程車、民宿尾款...">
               </label>
-              <label>
-                發票內容 / 收據文字
-                <textarea id="invoiceText" placeholder="貼上發票文字、收據內容或簡要說明..."></textarea>
-              </label>
-              <label>
-                拍發票照片
-                <input id="invoiceImage" type="file" accept="image/*" capture="environment">
-              </label>
-              <div class="row">
-                <button class="btn secondary" type="button" id="parseInvoiceBtn">自動擷取發票</button>
-                <button class="btn secondary" type="button" id="clearInvoiceBtn">清除發票資料</button>
-              </div>
-              <div class="subtitle" id="invoicePreview" hidden></div>
               <button class="btn" type="submit">加入支出</button>
             </form>
           </section>
@@ -929,11 +916,6 @@ window.serverTimestamp = serverTimestamp;
     const paidBy = document.querySelector("#paidBy");
     const category = document.querySelector("#category");
     const expenseNote = document.querySelector("#expenseNote");
-    const invoiceText = document.querySelector("#invoiceText");
-    const invoiceImage = document.querySelector("#invoiceImage");
-    const parseInvoiceBtn = document.querySelector("#parseInvoiceBtn");
-    const clearInvoiceBtn = document.querySelector("#clearInvoiceBtn");
-    const invoicePreview = document.querySelector("#invoicePreview");
     const ledgerList = document.querySelector("#ledgerList");
     const emptyState = document.querySelector("#emptyState");
     const search = document.querySelector("#search");
@@ -1141,74 +1123,6 @@ async function joinGroup(groupId) {
       const cleaned = text.trim().replace(/\s+/g, " ").slice(0, 120);
       const keywordMatch = cleaned.match(/(?:餐飲|交通|住宿|門票|採買|娛樂|購物|計程車|車資|飯店|民宿|超商|超市|餐廳|晚餐|午餐|早餐|票|景點).*/i);
       return keywordMatch ? keywordMatch[0] : cleaned;
-    }
-
-    function setInvoicePreview(message) {
-      invoicePreview.hidden = false;
-      invoicePreview.textContent = message;
-    }
-
-    function clearInvoiceFields() {
-      invoiceText.value = "";
-      invoiceImage.value = "";
-      invoicePreview.textContent = "";
-      invoicePreview.hidden = true;
-    }
-
-    let invoiceOCRWorker = null;
-
-    async function ensureOCRWorker() {
-      if (!window.Tesseract) throw new Error("OCR 引擎尚未載入");
-      if (invoiceOCRWorker) return invoiceOCRWorker;
-      invoiceOCRWorker = Tesseract.createWorker({
-        logger: () => {}
-      });
-      await invoiceOCRWorker.load();
-      await invoiceOCRWorker.loadLanguage("chi_tra+eng");
-      await invoiceOCRWorker.initialize("chi_tra+eng");
-      return invoiceOCRWorker;
-    }
-
-    async function extractTextFromImage(file) {
-      try {
-        const worker = await ensureOCRWorker();
-        setInvoicePreview("正在辨識發票圖片，請稍候...");
-        const { data: { text } } = await worker.recognize(file);
-        return text;
-      } catch (error) {
-        console.warn("OCR 無法執行：", error);
-        return "";
-      }
-    }
-
-    function parseInvoiceText() {
-      const text = invoiceText.value.trim();
-      if (!text) {
-        showToast("請先貼上發票內容或簡要說明");
-        return;
-      }
-      const amounts = [...text.matchAll(/((?:\d{1,3}(?:,\d{3})*|\d+)(?:\.\d{1,2})?)/g)].map(match => Number(match[1].replace(/,/g, ""))).filter(Number.isFinite);
-      const amount = amounts.length ? Math.max(...amounts) : null;
-      if (amount) expenseAmount.value = amount;
-      const categoryName = guessCategory(text);
-      if (categoryName) category.value = categoryName;
-      expenseNote.value = extractInvoiceNote(text);
-      setInvoicePreview(`已自動擷取發票資料，可再手動調整。金額：${amount ? money(amount) : "未找到"}。分類：${categoryName || "請選擇"}`);
-      showToast("已自動擷取發票內容，請確認後再提交");
-    }
-
-    async function parseInvoiceFile(file) {
-      const filenameText = file.name.replace(/[_\-.]/g, " ");
-      invoiceText.value = filenameText;
-      parseInvoiceText();
-      const ocrText = await extractTextFromImage(file);
-      if (ocrText) {
-        invoiceText.value = ocrText;
-        parseInvoiceText();
-        setInvoicePreview(`已辨識發票圖片內容。若結果不正確，請手動修正。`);
-      } else {
-        setInvoicePreview(`已選擇發票照片：${file.name}。OCR 未完成，請手動輸入或修正。`);
-      }
     }
 
     function totals() {
@@ -1487,6 +1401,27 @@ async function joinGroup(groupId) {
     alert("新增成功");
 });
 
+// ====== 💡 建議加在第 1402 行的下方 ======
+
+// 1. 尋找畫面上的「清空資料」按鈕
+const clearDataBtn = Array.from(document.querySelectorAll("button")).find(btn => btn.textContent.trim() === "清空資料");
+
+if (clearDataBtn) {
+    clearDataBtn.addEventListener("click", () => {
+        // 2. 跳出確認視窗，防止使用者誤觸
+        if (confirm("確定要登出並清空此裝置上的群組紀錄嗎？")) {
+            
+            // 3. 清除瀏覽器記憶的群組 ID 
+            // (對應你前面第 910 行宣告的 groupStorageKey)
+            localStorage.removeItem("shared-ledger-group-id");
+            
+            // 4. 提示並重新整理網頁，回到未登入的乾淨狀態
+            alert("已成功退出群組！");
+            window.location.reload();
+        }
+    });
+}
+
     fundForm.addEventListener("submit", event => {
       event.preventDefault();
       if (!requireUsers()) return;
@@ -1537,7 +1472,6 @@ async function joinGroup(groupId) {
       saveState();
       expenseForm.reset();
       expenseDate.value = todayValue();
-      clearInvoiceFields();
       render();
       showToast("已加入支出");
     });
@@ -1598,21 +1532,13 @@ async function joinGroup(groupId) {
     showToast("已刪除使用者");
 });
 
-    parseInvoiceBtn.addEventListener("click", parseInvoiceText);
-    clearInvoiceBtn.addEventListener("click", clearInvoiceFields);
+
+    
     document.querySelector("#editForm").addEventListener("submit", event => {
       event.preventDefault();
       saveEdit();
     });
     document.querySelector("#cancelEditBtn").addEventListener("click", cancelEdit);
-    invoiceImage.addEventListener("change", () => {
-      const file = invoiceImage.files?.[0];
-      if (!file) {
-        clearInvoiceFields();
-        return;
-      }
-      parseInvoiceFile(file);
-    });
 
 
     document.querySelector("#createGroupBtn").addEventListener("click", async () => {
@@ -1720,31 +1646,19 @@ if (ok) {
     });
 
 async function initialize() {
-  console.log("initialize開始");
-console.log(typeof loadGroup);
-console.log(loadGroup);
+    console.log("initialize開始");
     fundDate.value = todayValue();
     expenseDate.value = todayValue();
     monthFilter.value = currentMonthValue();
 
     window.addEventListener("pagehide", saveState);
     window.addEventListener("beforeunload", saveState);
-
-    if (currentGroupId) {
-    const ok = await joinGroup(currentGroupId);
-
-    if (ok) {
-        await subscribeGroupChanges();
-    } else {
-        clearGroupId();
-        updateGroupUI("本機模式");
-    }
-} else {
-    updateGroupUI("本機模式");
+    
+    // 這裡變乾淨了，直接結束
 }
+
 
 render();
-}
 
 initialize();
 window.addEventListener('load', async () => {
