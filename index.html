@@ -1747,30 +1747,32 @@ render();
 }
 
 initialize();
-(async function initSavedGroup() {
-    // 檢查瀏覽器有沒有記錄過群組 ID
+(async function autoJoinLastGroup() {
+    // 1. 自動從瀏覽器記憶庫拿出上次登入的群組號碼
     const savedGroupId = localStorage.getItem("shared-ledger-group-id");
     
+    // 如果之前有登入過任何群組，就啟動全自動流程
     if (savedGroupId) {
-        // 1. 自動把號碼填入你的輸入框中（對應你的 id="groupCode"）
+        
+        // 2. 自動把號碼倒填回你的輸入框中 (這樣畫面上才看得到群組號碼)
         const groupInput = document.querySelector("#groupCode");
         if (groupInput) {
             groupInput.value = savedGroupId;
         }
 
         try {
-            // 2. 自動執行你寫好的載入邏輯
+            // 3. 【核心自動化】不用等你手動點按鈕，程式碼在此「自動執行加入群組」
             if (typeof joinGroup === 'function') {
                 const success = await joinGroup(savedGroupId);
                 
-                // 3. 載入成功後，自動啟動即時同步監聽
+                // 4. 自動連線成功後，順便幫你啟動 Firebase 的即時監聽更新
                 if (success && typeof subscribeGroupChanges === 'function') {
                     subscribeGroupChanges();
-                    console.log("【系統】已自動回復上次使用的群組並啟動即時監聽！");
+                    console.log("【自動成功】已自動登入群組並串接 Realtime 監聽：" + savedGroupId);
                 }
             }
         } catch (error) {
-            console.error("【系統】自動回復群組失敗：", error);
+            console.error("【自動失敗】自動登入時 Firebase 發生錯誤：", error);
         }
     }
 })();
