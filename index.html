@@ -725,8 +725,17 @@
               <label>
                 備註
                 <input id="expenseNote" type="text" maxlength="50" placeholder="晚餐、計程車、民宿尾款...">
-              </label>
-              <button class="btn" type="submit">加入支出</button>
+                  </label>
+
+    <!-- 💡 【新增：參與分攤打勾區塊】安插在備註下方、按鈕上方 -->
+    <div style="margin: 12px 0 18px;">
+        <span style="font-size: 15px; font-weight: 500; display: block; margin-bottom: 8px;">參與分攤的人（預設全部人）</span>
+        <!-- 這是一個用來給 JavaScript 動態產生打勾方塊的容器 -->
+        <div id="splitUsersContainer" style="display: flex; flex-wrap: wrap; gap: 8px;"></div>
+    </div>
+
+    <button class="btn" type="submit">加入支出</button>
+
             </form>
           </section>
         </section>
@@ -759,15 +768,25 @@
                   </select>
                 </label>
               </div>
-              <label>
-                備註
-                <input id="editNote" type="text" maxlength="50">
-              </label>
-              <div class="row">
-                <button class="btn" type="submit">儲存編輯</button>
-                <button class="btn secondary" type="button" id="cancelEditBtn">取消</button>
-              </div>
-            </form>
+    <label>
+        備註
+        <input id="editNote" type="text" maxlength="50">
+    </label>
+
+    <!-- 💡 【新增：編輯時的參與分攤打勾區塊】安插在備註下方、儲存按鈕上方 -->
+    <div style="margin: 12px 0 18px;">
+        <span style="font-size: 15px; font-weight: 500; display: block; margin-bottom: 8px;">參與分攤的人</span>
+        <!-- 這是給 JavaScript 動態產生編輯打勾方塊的容器 -->
+        <div id="editSplitUsersContainer" style="display: flex; flex-wrap: wrap; gap: 8px;"></div>
+    </div>
+
+    <!-- 💡 核心修復：確保兩個按鈕都在，且 id="cancelEditBtn" 沒有消失 -->
+    <div class="row">
+        <button class="btn" type="submit">儲存編輯</button>
+        <button class="btn secondary" type="button" id="cancelEditBtn">取消</button>
+    </div>
+</form>
+
           </section>
 
           <section class="panel section">
@@ -901,11 +920,13 @@ window.serverTimestamp = serverTimestamp;
     let currentGroupId = localStorage.getItem(groupStorageKey);
     let groupDoc = null;
 
-    const formatter = new Intl.NumberFormat("zh-TW", {
-      style: "currency",
-      currency: "TWD",
-      maximumFractionDigits: 0
-    });
+    // 💡 請找到你程式碼前段的 formatter，將其修改成這樣：
+const formatter = new Intl.NumberFormat("zh-TW", {
+    style: "currency",
+    currency: "TWD",
+    maximumFractionDigits: 2 // 👈 核心：原本是 0，改成 1 就能在畫面上看到小數點後一位了！
+});
+
 
     const userForm = document.querySelector("#userForm");
     const fundForm = document.querySelector("#fundForm");
@@ -1087,9 +1108,18 @@ async function joinGroup(groupId) {
       return todayValue().slice(0, 7);
     }
 
-    function money(value) {
-      return formatter.format(Math.round(value));
-    }
+    // 💡 請複製這整段，蓋掉你原本的 function money(value) 函式：
+function money(value) {
+  const num = Number(value) || 0;
+  // 使用最嚴謹的臺灣貨幣格式，且強制顯示到小數點後第二位
+  return new Intl.NumberFormat("zh-TW", {
+    style: "currency",
+    currency: "TWD",
+    minimumFractionDigits: 2, // 👈 核心：最少顯示兩位小數（例如 .00 或 .25）
+    maximumFractionDigits: 2  // 👈 核心：最多顯示兩位小數
+  }).format(num);
+}
+
 
     function userById(userId) {
       return state.users.find(user => user.id === userId);
@@ -1143,50 +1173,125 @@ async function joinGroup(groupId) {
       return { totalSpent, totalFund, fundSpent, fundBalance, average };
     }
 
-    function settlement() {
-      const { average, fundBalance } = totals();
-      const sharedRemainingFund = state.users.length ? fundBalance / state.users.length : 0;
-      const rows = state.users.map(user => {
-        const directPaid = state.entries
-          .filter(entry => entry.type === "expense" && entry.paidBy === user.id)
-          .reduce((sum, entry) => sum + entry.amount, 0);
-        const fundProvided = state.entries
-          .filter(entry => entry.type === "fund")
-          .reduce((sum, entry) => {
-            const contribution = entry.contributions.find(item => item.userId === user.id);
-            return sum + (contribution?.amount || 0);
-          }, 0);
-        const actualPaid = directPaid + fundProvided;
-        const settlementPaid = actualPaid - sharedRemainingFund;
-        const difference = settlementPaid - average;
-        return { user, directPaid, fundProvided, actualPaid, settlementPaid, difference };
-      });
+function settlement() {
+  if (!state.users || state.users.length === 0) return { rows: [], transfers: [] };
 
-      const debtors = rows
-        .filter(row => row.difference < -0.5)
-        .map(row => ({ name: row.user.name, amount: Math.abs(row.difference) }))
-        .sort((a, b) => b.amount - a.amount);
-      const creditors = rows
-        .filter(row => row.difference > 0.5)
-        .map(row => ({ name: row.user.name, amount: row.difference }))
-        .sort((a, b) => b.amount - a.amount);
-      const transfers = [];
-      let debtorIndex = 0;
-      let creditorIndex = 0;
+  // 1. 初始化每個人應該負擔的金額 (應付) 與 幫忙代墊的金額 (已付)
+  const userSummary = {};
+  state.users.forEach(user => {
+    userSummary[user.id] = { user, directPaid: 0, fundProvided: 0, actualPaid: 0, shouldPay: 0 };
+  });
 
-      while (debtorIndex < debtors.length && creditorIndex < creditors.length) {
-        const debtor = debtors[debtorIndex];
-        const creditor = creditors[creditorIndex];
-        const amount = Math.min(debtor.amount, creditor.amount);
-        if (amount > 0.5) transfers.push({ from: debtor.name, to: creditor.name, amount });
-        debtor.amount -= amount;
-        creditor.amount -= amount;
-        if (debtor.amount <= 0.5) debtorIndex += 1;
-        if (creditor.amount <= 0.5) creditorIndex += 1;
+  const { fundBalance } = totals();
+  // 基金總額平分給所有人作為剩餘基金權益
+  const sharedRemainingFund = state.users.length ? fundBalance / state.users.length : 0;
+
+  // 2. 計算每個人「直接付款」與「提供基金」的總和
+  state.users.forEach(user => {
+    const summary = userSummary[user.id];
+    
+    // 直接幫忙代墊的支出
+    summary.directPaid = state.entries
+      .filter(entry => entry.type === "expense" && entry.paidBy === user.id)
+      .reduce((sum, entry) => sum + entry.amount, 0);
+
+    // 投入的共同基金
+    summary.fundProvided = state.entries
+      .filter(entry => entry.type === "fund")
+      .reduce((sum, entry) => {
+        const contribution = entry.contributions?.find(item => item.userId === user.id);
+        return sum + (contribution ? contribution.amount || 0 : 0);
+      }, 0);
+
+    // 實際總付出 = 直接代墊 + 提供基金
+    summary.actualPaid = summary.directPaid + summary.fundProvided;
+  });
+
+  // 3. 計算每個人這段期間所有消費累積下來的「總應付分攤金額」
+  state.entries.forEach(entry => {
+    if (entry.type !== "expense") return;
+
+    const amount = entry.amount;
+    
+    // 取得這筆消費指定分攤的人。如果舊帳目沒有，就預設全部人平分
+    const activeShares = (entry.shares && entry.shares.length > 0) 
+      ? entry.shares 
+      : state.users.map(u => u.id);
+    
+    // 計算這筆消費每個人分攤多少
+    const perPersonShare = amount / activeShares.length;
+
+    activeShares.forEach(userId => {
+      if (userSummary[userId]) {
+        userSummary[userId].shouldPay += perPersonShare;
       }
+    });
+  });
 
-      return { rows, transfers };
+  // 4. 計算每個人的結算差額，並四捨五入到小數點後第一位
+  const rows = Object.values(userSummary).map(summary => {
+    // 結算付款額 = 實際總付出 - 剩餘共同基金權益
+    const settlementPaid = summary.actualPaid - sharedRemainingFund;
+    
+    // 差額 = 結算付款額 - 這段期間自己累積下來的總應付分攤
+    let difference = settlementPaid - summary.shouldPay;
+    
+    // 💡 原本是 Math.round(difference * 10) / 10;
+// 請修改成 * 100) / 100，這樣後台就會算到小數點後兩位
+difference = Math.round(difference * 100) / 100;
+
+    // 回傳符合你原本 renderSettlement 所需的完整格式
+    return { 
+      user: summary.user, 
+      directPaid: summary.directPaid, 
+      fundProvided: summary.fundProvided, 
+      actualPaid: summary.actualPaid, 
+      settlementPaid, 
+      difference 
+    };
+  });
+
+  // 5. 根據差額計算「誰該給誰錢」的轉帳矩陣
+  const debtors = rows
+    .filter(row => row.difference < -0.05) // 小於 0 塊代表欠錢
+    .map(row => ({ name: row.user.name, amount: Math.abs(row.difference) }))
+    .sort((a, b) => b.amount - a.amount);
+
+  const creditors = rows
+    .filter(row => row.difference > 0.05)  // 大於 0 塊代表多付，應收錢
+    .map(row => ({ name: row.user.name, amount: row.difference }))
+    .sort((a, b) => b.amount - a.amount);
+
+  const transfers = [];
+  let debtorIndex = 0;
+  let creditorIndex = 0;
+
+  while (debtorIndex < debtors.length && creditorIndex < creditors.length) {
+    const debtor = debtors[debtorIndex];
+    const creditor = creditors[creditorIndex];
+    
+    // 取兩者之間能沖銷的最小金額，並四捨五入到小數點後第一位
+    let amount = Math.min(debtor.amount, creditor.amount);
+    // 💡 原本是 Math.round(amount * 10) / 10;
+// 請同步修改成 * 100) / 100
+amount = Math.round(amount * 100) / 100;
+
+
+    if (amount > 0.05) {
+      transfers.push({ from: debtor.name, to: creditor.name, amount });
     }
+    
+    debtor.amount -= amount;
+    creditor.amount -= amount;
+
+    if (debtor.amount < 0.06) debtorIndex++;
+    if (creditor.amount < 0.06) creditorIndex++;
+  }
+
+  // 💡 關鍵修復：這裡同時把 rows 和 transfers 一起打包回傳，完美對接原本的畫面渲染！
+  return { rows, transfers };
+}
+
 
 function renderUsers() {
     // 1. 產生頂部使用者標籤
@@ -1224,6 +1329,19 @@ paidBy.innerHTML = `<option value="fund">共同基金支付</option>` +
             </div>
           `).join("")
         : `<p class="subtitle">加入使用者後，就能記錄每個人提供多少基金。</p>`;
+            // 4. 💡 【新增】產生新增支出時的「分攤參與者」打勾方塊
+    const splitContainer = document.querySelector("#splitUsersContainer");
+    if (splitContainer) {
+        splitContainer.innerHTML = state.users && state.users.length > 0
+            ? state.users.map(user => `
+                <label style="display: inline-flex; align-items: center; gap: 4px; background: #f0f4f8; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 15px;">
+                    <input type="checkbox" name="splitUserCheckbox" value="${user.id}" checked style="width: 16px; height: 16px;">
+                    ${user.name}
+                </label>
+              `).join("")
+            : `<p class="subtitle" style="margin: 0;">請先加入使用者</p>`;
+    }
+
 }
 
 
@@ -1270,7 +1388,18 @@ paidBy.innerHTML = `<option value="fund">共同基金支付</option>` +
             <td data-label="類型">${typeText}</td>
             <td data-label="支付/提供者">${entryPerson(entry)}</td>
             <td data-label="分類">${entry.category ? `<span class="tag">${entry.category}</span>` : "基金"}</td>
-            <td data-label="備註">${entry.note || "未填寫"}</td>
+<td data-label="備註">
+  <div>${entry.note || "未填寫"}</div>
+  ${entry.type === 'expense' ? `
+    <div style="font-size: 11px; color: var(--muted); margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px; align-items: center;">
+      <span style="background: #eef3f7; color: var(--accent-strong); padding: 1px 6px; border-radius: 4px; font-weight: bold; font-size: 10px;">參與</span>
+      <span style="letter-spacing: 0.5px;">
+        ${(entry.shares && entry.shares.length > 0 ? entry.shares : state.users?.map(u => u.id) || []).map(id => state.users?.find(u => u.id === id)?.name).filter(Boolean).join("、")}
+      </span>
+    </div>
+  ` : ''}
+</td>
+
             <td data-label="金額">${amount}</td>
             <td data-label="操作"><button class="delete-btn" type="button" data-delete="${entry.id}" aria-label="刪除">×</button>${editButton}</td>
           </tr>
@@ -1279,15 +1408,34 @@ paidBy.innerHTML = `<option value="fund">共同基金支付</option>` +
       emptyState.hidden = entries.length > 0;
     }
 
-    function editEntry(entry) {
-      document.querySelector("#editFormSection").hidden = false;
-      document.querySelector("#editDate").value = entry.date;
-      document.querySelector("#editAmount").value = entry.amount || "";
-      document.querySelector("#editCategory").value = entry.category || "其他";
-      document.querySelector("#editNote").value = entry.note || "";
-      document.querySelector("#editForm").dataset.entryId = entry.id;
-      document.querySelector("#ledgerView").scrollIntoView({ behavior: "smooth" });
+function editEntry(entry) {
+    document.querySelector("#editFormSection").hidden = false;
+    document.querySelector("#editDate").value = entry.date;
+    document.querySelector("#editAmount").value = entry.amount || "";
+    document.querySelector("#editCategory").value = entry.category || "其他";
+    document.querySelector("#editNote").value = entry.note || "";
+    document.querySelector("#editForm").dataset.entryId = entry.id;
+    document.querySelector("#ledgerView").scrollIntoView({ behavior: "smooth" });
+
+    // 💡 【新增】在編輯面板上動態產生這筆帳目當時的參與人打勾清單
+    const editSplitContainer = document.querySelector("#editSplitUsersContainer");
+    if (editSplitContainer && state.users) {
+        // 如果這筆舊帳目沒有記錄到 shares (例如這功能上線前的舊資料)，預設為全部人都打勾
+        const currentShares = entry.shares || state.users.map(u => u.id);
+
+        editSplitContainer.innerHTML = state.users.map(user => {
+            // 判斷這位成員當時有沒有參與分攤，有的話就加上 checked
+            const isChecked = currentShares.includes(user.id) ? "checked" : "";
+            return `
+                <label style="display: inline-flex; align-items: center; gap: 4px; background: #f0f4f8; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 15px;">
+                    <input type="checkbox" name="editSplitUserCheckbox" value="${user.id}" ${isChecked} style="width: 16px; height: 16px;">
+                    ${user.name}
+                </label>
+            `;
+        }).join("");
     }
+}
+
 
     function cancelEdit() {
       document.querySelector("#editFormSection").hidden = true;
@@ -1295,21 +1443,34 @@ paidBy.innerHTML = `<option value="fund">共同基金支付</option>` +
       delete document.querySelector("#editForm").dataset.entryId;
     }
 
-    function saveEdit() {
-      const entryId = document.querySelector("#editForm").dataset.entryId;
-      const entry = state.entries.find(e => e.id === entryId);
-      if (!entry) return;
-      
-      entry.date = document.querySelector("#editDate").value;
-      entry.amount = Number(document.querySelector("#editAmount").value) || 0;
-      entry.category = document.querySelector("#editCategory").value;
-      entry.note = document.querySelector("#editNote").value.trim();
-      
-      saveState();
-      render();
-      cancelEdit();
-      showToast("已儲存編輯");
-    }
+function saveEdit() {
+  const entryId = document.querySelector("#editForm").dataset.entryId;
+  const entry = state.entries.find(e => e.id === entryId);
+  if (!entry) return;
+
+  // 💡 1. 【新增】抓出目前編輯畫面上哪幾個人被打了勾
+  const editCheckboxes = document.querySelectorAll('input[name="editSplitUserCheckbox"]:checked');
+  const newCheckedUserIds = Array.from(editCheckboxes).map(cb => cb.value);
+
+  if (newCheckedUserIds.length === 0) {
+    showToast("至少要選擇一個人進行分攤！");
+    return;
+  }
+
+  entry.date = document.querySelector("#editDate").value;
+  entry.amount = Number(document.querySelector("#editAmount").value) || 0;
+  entry.category = document.querySelector("#editCategory").value;
+  entry.note = document.querySelector("#editNote").value.trim();
+  
+  // 💡 2. 【核心修改】把重新調整後的分攤名單存進這筆帳目中
+  entry.shares = newCheckedUserIds;
+
+  saveState();
+  render();
+  cancelEdit();
+  showToast("已儲存編輯");
+}
+
 
     function renderSettlement() {
       const { rows, transfers } = settlement();
@@ -1460,19 +1621,29 @@ if (clearDataBtn) {
       showToast("已記錄共同基金");
     });
 
-    expenseForm.addEventListener("submit", event => {
-      event.preventDefault();
-      if (!requireUsers()) return;
-      const amount = Number(expenseAmount.value);
-      if (!Number.isFinite(amount) || amount <= 0) {
+ expenseForm.addEventListener("submit", event => {
+    event.preventDefault();
+    if (!requireUsers()) return;
+    const amount = Number(expenseAmount.value);
+    if (!Number.isFinite(amount) || amount <= 0) {
         showToast("請輸入正確金額");
         return;
-      }
-      if (paidBy.value === "fund" && amount > totals().fundBalance) {
+    }
+    if (paidBy.value === "fund" && amount > totals().fundBalance) {
         showToast("共同基金餘額不足");
         return;
-      }
-      state.entries.push({
+    }
+
+    // 💡 1. 【新增】抓出目前哪幾個使用者有被打勾參與分攤
+    const checkboxes = document.querySelectorAll('input[name="splitUserCheckbox"]:checked');
+    const checkedUserIds = Array.from(checkboxes).map(cb => cb.value);
+
+    if (checkedUserIds.length === 0) {
+        showToast("至少要選擇一個人進行分攤！");
+        return;
+    }
+
+    state.entries.push({
         id: id(),
         type: "expense",
         date: expenseDate.value,
@@ -1480,14 +1651,22 @@ if (clearDataBtn) {
         paidBy: paidBy.value,
         category: category.value,
         note: expenseNote.value.trim(),
+        // 💡 2. 【核心修改】把這筆消費「是誰要付」的 ID 陣列存進去
+        shares: checkedUserIds,
         createdAt: Date.now()
-      });
-      saveState();
-      expenseForm.reset();
-      expenseDate.value = todayValue();
-      render();
-      showToast("已加入支出");
     });
+
+    saveState();
+    expenseForm.reset();
+    expenseDate.value = todayValue();
+
+    // 💡 3. 【新增】表單重設後，自動把所有分攤打勾方塊重新全選回來
+    document.querySelectorAll('input[name="splitUserCheckbox"]').forEach(cb => cb.checked = true);
+
+    render();
+    showToast("已加入支出");
+});
+
 
     ledgerList.addEventListener("click", event => {
       const deleteBtn = event.target.closest("[data-delete]");
