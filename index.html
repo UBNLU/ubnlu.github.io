@@ -1747,35 +1747,47 @@ render();
 }
 
 initialize();
-(async function autoJoinLastGroup() {
-    // 1. 自動從瀏覽器記憶庫拿出上次登入的群組號碼
+// ==========================================
+// 🚀 【終極全自動回復】確保所有模組完全載入後，全自動連線！
+// ==========================================
+window.addEventListener('load', async () => {
+    // 1. 從瀏覽器提取之前存過的群組 ID
     const savedGroupId = localStorage.getItem("shared-ledger-group-id");
     
-    // 如果之前有登入過任何群組，就啟動全自動流程
     if (savedGroupId) {
-        
-        // 2. 自動把號碼倒填回你的輸入框中 (這樣畫面上才看得到群組號碼)
+        // 2. 自動填入輸入框（這一步你剛才已經成功了）
         const groupInput = document.querySelector("#groupCode");
         if (groupInput) {
             groupInput.value = savedGroupId;
         }
 
-        try {
-            // 3. 【核心自動化】不用等你手動點按鈕，程式碼在此「自動執行加入群組」
-            if (typeof joinGroup === 'function') {
-                const success = await joinGroup(savedGroupId);
-                
-                // 4. 自動連線成功後，順便幫你啟動 Firebase 的即時監聽更新
-                if (success && typeof subscribeGroupChanges === 'function') {
-                    subscribeGroupChanges();
-                    console.log("【自動成功】已自動登入群組並串接 Realtime 監聽：" + savedGroupId);
+        // 加上一點小延遲（100毫秒），確保 Firebase 模組和 window 上的函式都綁定完成
+        setTimeout(async () => {
+            try {
+                // 3. 【全自動核心】判斷 joinGroup 函式是否存在
+                if (typeof joinGroup === 'function') {
+                    console.log("【系統】偵測到歷史群組，正在嘗試全自動登入...", savedGroupId);
+                    
+                    // 執行自動加入
+                    const success = await joinGroup(savedGroupId);
+                    
+                    // 4. 自動連線成功後，啟動即時更新監聽
+                    if (success && typeof subscribeGroupChanges === 'function') {
+                        subscribeGroupChanges();
+                        console.log("【自動成功】全自動登入成功，並已開啟即時同步！");
+                    }
+                } else {
+                    console.warn("【系統警告】此時尚未找到 joinGroup 函式，請確認是否被包裹在其他作用域中。");
                 }
+            } catch (error) {
+                console.error("【自動失敗】全自動登入時發生錯誤：", error);
             }
-        } catch (error) {
-            console.error("【自動失敗】自動登入時 Firebase 發生錯誤：", error);
-        }
+        }, 100);
     }
-})();
+});
+// ==========================================
+
+
   </script>
 </body>
 </html>
