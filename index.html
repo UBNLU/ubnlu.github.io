@@ -1191,18 +1191,20 @@ async function joinGroup(groupId) {
 function renderUsers() {
     // 1. 產生頂部使用者標籤
     const userChipsHtml = state.users && state.users.length > 0
+        // 💡 請複製下面這段，直接蓋掉你目前程式碼的第 1194 ~ 1199 行：
         ? state.users.map(user => `
             <span class="chip">
-                <span style="cursor: pointer;" onclick="window.editUserName('${user.id}')" title="點擊修改名稱">${user.name}</span>
+                <span style="cursor: pointer; -webkit-tap-highlight-color: transparent;" onclick="event.stopPropagation(); window.editUserName('${user.id}')" title="點擊修改名稱">${user.name}</span>
                 <button class="delete-user" data-user="${user.id}">×</button>
             </span>
           `).join("")
+
         : `<p class="subtitle">先加入一起分帳的人。</p>`;
 
     document.querySelector("#userChips").innerHTML = userChipsHtml;
 
     // 2. 產生付款人下拉選單（💡 這裡已修正為大寫 HTML）
-    paidBy.innerHTML = `<option value="fund">共同基金支付</option>` +
+paidBy.innerHTML = `<option value="fund">共同基金支付</option>` +
         (state.users && state.users.length > 0
             ? state.users.map(user => `<option value="${user.id}">${user.name} 預先支付</option>`).join("")
             : "");
