@@ -1,4 +1,3 @@
-
 <!doctype html>
 <html lang="zh-Hant">
 <head>
@@ -964,8 +963,8 @@ window.serverTimestamp = serverTimestamp;
     async function syncToGroup() {
     if (!currentGroupId) return;
 
-    await updateDoc(
-        doc(db, "groups", currentGroupId),
+    await window.updateDoc(
+    window.doc(window.db,"groups",currentGroupId),
         {
             users: state.users,
             entries: state.entries,
@@ -1027,12 +1026,12 @@ window.serverTimestamp = serverTimestamp;
 
 
 async function joinGroup(groupId) {
-    const group = await loadGroup(groupId);
+    const group = await window.loadGroup(groupId);
 
     if (!group) {
-        showToast("找不到這個群組");
-        return;
-    }
+    showToast("找不到這個群組");
+    return false;
+}
 
     currentGroupId = groupId;
     groupDoc = group;
@@ -1048,12 +1047,13 @@ async function joinGroup(groupId) {
     updateGroupUI(groupId);
 
     showToast("成功加入群組");
+    return true;
 }
 
     async function subscribeGroupChanges() {
     if (!currentGroupId) return;
 
-    const ref = doc(db, "groups", currentGroupId);
+   const ref = window.doc(window.db,"groups",currentGroupId);
 
    onSnapshot(ref, (snap) => {
 
@@ -1618,9 +1618,12 @@ async function joinGroup(groupId) {
     document.querySelector("#createGroupBtn").addEventListener("click", async () => {
       const groupId = crypto.randomUUID();
 
-await createGroup(groupId);
+await window.createGroup(groupId);
 
 currentGroupId = groupId;
+localStorage.setItem(groupStorageKey, groupId);
+
+console.log(localStorage.getItem(groupStorageKey));
 
 await subscribeGroupChanges();
 
@@ -1636,8 +1639,11 @@ if (groupId) {
     return;
   }
 
-  await joinGroup(code);
-  await subscribeGroupChanges();
+  const ok = await joinGroup(code);
+
+if (ok) {
+    await subscribeGroupChanges();
+}
 });
 
     document.querySelectorAll(".tab").forEach(tab => {
@@ -1714,6 +1720,9 @@ if (groupId) {
     });
 
 async function initialize() {
+  console.log("initialize開始");
+console.log(typeof loadGroup);
+console.log(loadGroup);
     fundDate.value = todayValue();
     expenseDate.value = todayValue();
     monthFilter.value = currentMonthValue();
@@ -1722,16 +1731,49 @@ async function initialize() {
     window.addEventListener("beforeunload", saveState);
 
     if (currentGroupId) {
-        await joinGroup(currentGroupId);
+    const ok = await joinGroup(currentGroupId);
+
+    if (ok) {
         await subscribeGroupChanges();
     } else {
+        clearGroupId();
         updateGroupUI("本機模式");
     }
+} else {
+    updateGroupUI("本機模式");
+}
 
-    render();
+render();
 }
 
 initialize();
+(async function initSavedGroup() {
+    // 檢查瀏覽器有沒有記錄過群組 ID
+    const savedGroupId = localStorage.getItem("shared-ledger-group-id");
+    
+    if (savedGroupId) {
+        // 1. 自動把號碼填入你的輸入框中（對應你的 id="groupCode"）
+        const groupInput = document.querySelector("#groupCode");
+        if (groupInput) {
+            groupInput.value = savedGroupId;
+        }
+
+        try {
+            // 2. 自動執行你寫好的載入邏輯
+            if (typeof joinGroup === 'function') {
+                const success = await joinGroup(savedGroupId);
+                
+                // 3. 載入成功後，自動啟動即時同步監聽
+                if (success && typeof subscribeGroupChanges === 'function') {
+                    subscribeGroupChanges();
+                    console.log("【系統】已自動回復上次使用的群組並啟動即時監聽！");
+                }
+            }
+        } catch (error) {
+            console.error("【系統】自動回復群組失敗：", error);
+        }
+    }
+})();
   </script>
 </body>
 </html>
