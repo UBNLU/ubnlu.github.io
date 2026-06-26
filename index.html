@@ -729,7 +729,7 @@
 
     <!-- 💡 【新增：參與分攤打勾區塊】安插在備註下方、按鈕上方 -->
     <div style="margin: 12px 0 18px;">
-        <span style="font-size: 15px; font-weight: 500; display: block; margin-bottom: 8px;">參與分攤的人（預設全部人）</span>
+        <span style="font-size: 15px; font-weight: 500; display: block; margin-bottom: 8px;">參與分攤的人</span>
         <!-- 這是一個用來給 JavaScript 動態產生打勾方塊的容器 -->
         <div id="splitUsersContainer" style="display: flex; flex-wrap: wrap; gap: 8px;"></div>
     </div>
@@ -1499,10 +1499,10 @@ function saveEdit() {
               <span>${item.from} 付給 ${item.to}</span>
               <span class="amount">${money(item.amount)}</span>
             </div>
-            <div class="mini">依目前帳本自動計算的最少轉帳建議。</div>
+            <div class="mini">結算建議</div>
           </div>
         `).join("")
-        : `<p class="subtitle">目前不需要互相轉帳，或資料還不足以結算。</p>`;
+        : `<p class="subtitle">目前不需要互相轉帳，或資料還不足以結算</p>`;
     }
 
     function renderCategories() {
@@ -1753,22 +1753,56 @@ document.querySelector("#userChips").addEventListener("click", async (event) => 
     document.querySelector("#cancelEditBtn").addEventListener("click", cancelEdit);
 
 
-    document.querySelector("#createGroupBtn").addEventListener("click", async () => {
-      const groupId = crypto.randomUUID();
+document.querySelector("#createGroupBtn").addEventListener("click", async () => {
+    showToast("正在生成專屬 6 位群組碼...");
+    
+    let newGroupId = "";
+    let isDuplicate = true;
+    let attempts = 0;
 
-await window.createGroup(groupId);
+    // 1. 安全防撞機制：隨機抽 6 位數字，如果 Firebase 裡有人用過，就自動重新抽（最多抽 5 次）
+    while (isDuplicate && attempts < 5) {
+        // 隨機產生 100000 到 999999 之間的 6 位數數字並轉成字串
+        newGroupId = String(Math.floor(100000 + Math.random() * 900000));
+        
+        // 去 Firebase 檢查這個 6 位碼是否已經存在
+        if (typeof window.loadGroup === 'function') {
+            const checkDoc = await window.loadGroup(newGroupId);
+            if (!checkDoc) {
+                isDuplicate = false; // 如果找不到，代表沒人使用，安全！
+            }
+        } else {
+            isDuplicate = false; // 防呆安全機制
+        }
+        attempts++;
+    }
 
-currentGroupId = groupId;
-localStorage.setItem(groupStorageKey, groupId);
+    // 2. 呼叫你原本的 Firebase 建立群組功能
+    try {
+        await window.createGroup(newGroupId);
+        
+        // 3. 執行全自動連線與儲存流程
+        currentGroupId = newGroupId;
+        localStorage.setItem(groupStorageKey, newGroupId);
+        
+        // 自動把新生成的 6 位數號碼填入輸入框中給使用者看
+        document.querySelector("#groupCode").value = newGroupId;
 
-console.log(localStorage.getItem(groupStorageKey));
+        if (typeof joinGroup === 'function') {
+            await joinGroup(newGroupId);
+        }
+        
+        if (typeof subscribeGroupChanges === 'function') {
+            await subscribeGroupChanges();
+        }
 
-await subscribeGroupChanges();
+        alert(`群組建立成功！您的簡單邀請碼為：【 ${newGroupId} 】`);
+    } catch (error) {
+        console.error("建立群組失敗：", error);
+        showToast("建立群組失敗");
+    }
+});
 
-if (groupId) {
-    document.querySelector("#groupCode").value = groupId;
-}
-    });
     document.querySelector("#joinGroupBtn").addEventListener("click", async () => {
   const code = document.querySelector("#groupCode").value.trim();
 
