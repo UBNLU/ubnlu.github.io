@@ -1179,49 +1179,52 @@ function money(value) {
 function settlement() {
   if (!state.users || state.users.length === 0) return { rows: [], transfers: [] };
 
-  // 1. 初始化每個人應該負擔的金額 (應付) 與 幫忙代墊的金額 (已付)
+  // 1. 初始化每位使用者的數據結構
   const userSummary = {};
   state.users.forEach(user => {
-    userSummary[user.id] = { user, directPaid: 0, fundProvided: 0, actualPaid: 0, shouldPay: 0 };
+    userSummary[user.id] = { 
+      user, 
+      directPaid: 0,      // 個人直接幫忙代墊的總額
+      fundProvided: 0,    // 個人總共投入的基金總額
+      shouldPay: 0,       // 個人所有參與消費累積下來的總應付
+      fundRefund: 0       // 剩餘基金依當初投入比例應退回的金額
+    };
   });
 
-  const { fundBalance } = totals();
-  // 基金總額平分給所有人作為剩餘基金權益
-  const sharedRemainingFund = state.users.length ? fundBalance / state.users.length : 0;
+  // 2. 第一輪：統計每個人「直接代墊」與「投入基金」的原始數據
+  let totalFundProvided = 0; // 全團隊總共投進來的基金大水庫
 
-  // 2. 計算每個人「直接付款」與「提供基金」的總和
-  state.users.forEach(user => {
-    const summary = userSummary[user.id];
+  state.entries.forEach(entry => {
+    // 處理 A：一般消費中，由「個人代墊」的部分
+    if (entry.type === "expense" && entry.paidBy !== "fund") {
+      if (userSummary[entry.paidBy]) {
+        userSummary[entry.paidBy].directPaid += entry.amount;
+      }
+    }
     
-    // 直接幫忙代墊的支出
-    summary.directPaid = state.entries
-      .filter(entry => entry.type === "expense" && entry.paidBy === user.id)
-      .reduce((sum, entry) => sum + entry.amount, 0);
-
-    // 投入的共同基金
-    summary.fundProvided = state.entries
-      .filter(entry => entry.type === "fund")
-      .reduce((sum, entry) => {
-        const contribution = entry.contributions?.find(item => item.userId === user.id);
-        return sum + (contribution ? contribution.amount || 0 : 0);
-      }, 0);
-
-    // 實際總付出 = 直接代墊 + 提供基金
-    summary.actualPaid = summary.directPaid + summary.fundProvided;
+    // 處理 B：每個人投入的「共同基金」
+    if (entry.type === "fund") {
+      entry.contributions?.forEach(contribution => {
+        const uid = contribution.userId;
+        const amt = contribution.amount || 0;
+        if (userSummary[uid]) {
+          userSummary[uid].fundProvided += amt;
+          totalFundProvided += amt;
+        }
+      });
+    }
   });
 
-  // 3. 計算每個人這段期間所有消費累積下來的「總應付分攤金額」
+  // 3. 第二輪：計算每筆消費的「精準自訂分攤（應付）」
   state.entries.forEach(entry => {
     if (entry.type !== "expense") return;
 
     const amount = entry.amount;
-    
-    // 取得這筆消費指定分攤的人。如果舊帳目沒有，就預設全部人平分
+    // 取得這筆消費指定分攤的人。如果舊帳目沒有，預設全員平分
     const activeShares = (entry.shares && entry.shares.length > 0) 
       ? entry.shares 
       : state.users.map(u => u.id);
     
-    // 計算這筆消費每個人分攤多少
     const perPersonShare = amount / activeShares.length;
 
     activeShares.forEach(userId => {
@@ -1231,37 +1234,48 @@ function settlement() {
     });
   });
 
-  // 4. 計算每個人的結算差額，並四捨五入到小數點後第一位
-  const rows = Object.values(userSummary).map(summary => {
-    // 結算付款額 = 實際總付出 - 剩餘共同基金權益
-    const settlementPaid = summary.actualPaid - sharedRemainingFund;
-    
-    // 差額 = 結算付款額 - 這段期間自己累積下來的總應付分攤
-    let difference = settlementPaid - summary.shouldPay;
-    
-    // 💡 原本是 Math.round(difference * 10) / 10;
-// 請修改成 * 100) / 100，這樣後台就會算到小數點後兩位
-difference = Math.round(difference * 100) / 100;
+  // 4. 第三輪：核心技術修正！「精準區分」剩餘基金權益
+  const { fundBalance } = totals(); // 目前庫存剩下來的基金總額
 
-    // 回傳符合你原本 renderSettlement 所需的完整格式
+  Object.values(userSummary).forEach(summary => {
+    if (fundBalance > 0 && totalFundProvided > 0) {
+      // 💡 關鍵算法：應退回基金 = 剩餘基金 * (自己投入基金 / 總投入基金)
+      // 這樣不論這段期間消費是幾個人分，每個人當初投入基金的剩餘權益都會被完美保障！
+      summary.fundRefund = fundBalance * (summary.fundProvided / totalFundProvided);
+    } else {
+      summary.fundRefund = 0;
+    }
+  });
+
+  // 5. 第四輪：總結算差額（四捨五入到小數點後第二位）
+  const rows = Object.values(userSummary).map(summary => {
+    // 💡 終極公式：
+    // 淨差額 = (個人直接代墊 - 個人總應付消費) + (個人投入基金 - 自己應拿回的剩餘基金)
+    let difference = (summary.directPaid - summary.shouldPay) + (summary.fundProvided - summary.fundRefund);
+    
+    // 如果這筆消費完全是用「共同基金支付」，且這個人既沒幫忙代墊、也沒參與分攤、也沒投過基金，差額就會是完美的 0
+    difference = Math.round(difference * 100) / 100;
+
+    // 回傳符合你原本 renderSettlement 渲染畫面所需的所有小字欄位
+    // 為了相容你的畫面小字，我們稍微對齊變數名稱
     return { 
       user: summary.user, 
       directPaid: summary.directPaid, 
       fundProvided: summary.fundProvided, 
-      actualPaid: summary.actualPaid, 
-      settlementPaid, 
+      actualPaid: summary.directPaid + summary.fundProvided, 
+      settlementPaid: (summary.directPaid + summary.fundProvided) - summary.fundRefund, // 用於相容舊版畫面的顯示欄位
       difference 
     };
   });
 
-  // 5. 根據差額計算「誰該給誰錢」的轉帳矩陣
+  // 6. 第五輪：轉帳矩陣沖銷（100% 精準清算誰該給誰錢）
   const debtors = rows
-    .filter(row => row.difference < -0.05) // 小於 0 塊代表欠錢
+    .filter(row => row.difference < -0.05)
     .map(row => ({ name: row.user.name, amount: Math.abs(row.difference) }))
     .sort((a, b) => b.amount - a.amount);
 
   const creditors = rows
-    .filter(row => row.difference > 0.05)  // 大於 0 塊代表多付，應收錢
+    .filter(row => row.difference > 0.05)
     .map(row => ({ name: row.user.name, amount: row.difference }))
     .sort((a, b) => b.amount - a.amount);
 
@@ -1273,12 +1287,8 @@ difference = Math.round(difference * 100) / 100;
     const debtor = debtors[debtorIndex];
     const creditor = creditors[creditorIndex];
     
-    // 取兩者之間能沖銷的最小金額，並四捨五入到小數點後第一位
     let amount = Math.min(debtor.amount, creditor.amount);
-    // 💡 原本是 Math.round(amount * 10) / 10;
-// 請同步修改成 * 100) / 100
-amount = Math.round(amount * 100) / 100;
-
+    amount = Math.round(amount * 100) / 100;
 
     if (amount > 0.05) {
       transfers.push({ from: debtor.name, to: creditor.name, amount });
@@ -1291,9 +1301,9 @@ amount = Math.round(amount * 100) / 100;
     if (creditor.amount < 0.06) creditorIndex++;
   }
 
-  // 💡 關鍵修復：這裡同時把 rows 和 transfers 一起打包回傳，完美對接原本的畫面渲染！
   return { rows, transfers };
 }
+
 
 
 function renderUsers() {
